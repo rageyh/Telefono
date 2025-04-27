@@ -1,0 +1,17 @@
+<?xml version="1.0" ?>
+<!DOCTYPE xml>
+<project name="Telefono" default="Build">
+    <xmlproperty file="pom.xml" prefix="pom" keeproot="false"/>
+
+    <target name="Build">
+        <jar jarfile="C:\Users\libut\Desktop\1.18.2\plugins\${ant.project.name}.jar">
+            <fileset dir="./build/classes/java/main">
+                <include name="**/*"/>
+            </fileset>
+            <fileset dir="./build/resources/main">
+                <include name="**/*"/>
+            </fileset>
+            <fileset dir="C:\Users\libut\IdeaProjects\lib\Foundation\target\classes"/>
+        </jar>
+    </target>
+</project>

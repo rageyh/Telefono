@@ -1,0 +1,33 @@
+package me.zrageyh.telefono.cache;
+
+import me.zrageyh.telefono.model.Call;
+
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Optional;
+
+public class CacheChiamata {
+
+    private final Map<String, Call> calls = new HashMap<>();
+
+    public void putData(final String simNumber, final Call call) {
+        calls.put(simNumber, call);
+    }
+
+    public boolean containsNumber(final String number) {
+        return calls.keySet().stream().anyMatch(key -> key.contains(number));
+    }
+
+    public Optional<Call> getData(final String number) {
+        for (final String key : calls.keySet()) {
+            if (key.contains(number)) {
+                return Optional.of(calls.get(key));
+            }
+        }
+        return Optional.empty();
+    }
+
+    public void removeData(final String number) {
+        calls.keySet().removeIf(key -> key.contains(number));
+    }
+}
