@@ -1,6 +1,6 @@
 package me.zrageyh.telefono.items;
 
-import me.zrageyh.cadaveri.api.CadaveriAPI;
+
 import me.zrageyh.telefono.Telefono;
 import net.wesjd.anvilgui.AnvilGUI;
 import org.bukkit.entity.Player;
@@ -48,7 +48,7 @@ public class ItemCallAmbulance extends SimpleItem {
                     }
 
                     final String reason = state.getText().trim();
-                    CadaveriAPI.callAmbulance(player, reason);
+                 //TODO   CadaveriAPI.callAmbulance(player, reason);
                     return List.of(AnvilGUI.ResponseAction.close());
                 }).open(player);
 

@@ -1,6 +1,6 @@
 package me.zrageyh.telefono.inventories;
 
-import me.zrageyh.relocated.lib.Common;
+
 import me.zrageyh.telefono.model.Abbonamento;
 import org.bukkit.Material;
 import org.bukkit.block.ShulkerBox;
@@ -10,6 +10,7 @@ import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.BlockStateMeta;
 import org.jetbrains.annotations.NotNull;
+import org.mineacademy.fo.Common;
 import xyz.xenondevs.invui.item.builder.ItemBuilder;
 
 import java.util.Arrays;
