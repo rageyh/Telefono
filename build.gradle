@@ -35,7 +35,7 @@ repositories {
 
 dependencies {
     annotationProcessor 'org.projectlombok:lombok:1.18.32'
-    compileOnly "io.papermc.paper:paper-api:1.18.2-R0.1-SNAPSHOT"
+    compileOnly "io.papermc.paper:paper-api:1.21.1-R0.1-SNAPSHOT"
     compileOnly 'org.projectlombok:lombok:1.18.32'
     compileOnly 'com.arcaniax:HeadDatabase-API:1.3.2'
     compileOnly 'com.github.LoneDev6:API-ItemsAdder:3.5.0b'
@@ -45,8 +45,6 @@ dependencies {
     compileOnly fileTree(dir: buildFile.parent + '\\lib', include: 'Cadaveri.jar')
     implementation "xyz.xenondevs.invui:invui:1.25"
     implementation "net.wesjd:anvilgui:1.9.3-SNAPSHOT"
-
-
 }
 
 def targetJavaVersion = 17
@@ -81,8 +79,8 @@ shadowJar {
     exclude 'LICENSE'
     relocate 'org.mineacademy.fo', 'me.zrageyh.relocated.lib'
     relocate 'xyz.xenodevs', 'me.zrageyh.relocated.invui'
-    destinationDirectory.set(file("C:\\Users\\libut\\Desktop\\1.18.2\\plugins"))
-    //destinationDirectory.set(file("/home/enrico/Desktop/Mineacademy/1.18.2/plugins/"))
+    destinationDirectory.set(file("C:\\Users\\libut\\Desktop\\1.21.1\\plugins"))
+    //destinationDirectory.set(file("/home/enrico/Desktop/Mineacademy/1.21.1/plugins/"))
     //  destinationDirectory.set(file("C:\\Users\\libut\\AppData\\Roaming\\.feather\\player-server\\servers\\3692ebda-7ea9-4200-893a-e1c452697b2b\\plugins"))
 
 }
