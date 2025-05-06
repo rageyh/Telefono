@@ -50,7 +50,7 @@ public class ItemCallPolice extends SimpleItem {
         return new ItemBuilder(Telefono.getHeadDatabaseAPI().getItemHead("16669"))
                 .setDisplayName("§9§lʟsᴘᴅ")
                 .setLegacyLore(List.of("§7ᴄʟɪᴄᴄᴀ ᴘᴇʀ sᴇɢɴᴀʟᴀʀᴇ ᴜɴ'ᴇᴍᴇʀɢᴇɴᴢᴀ", "§7ᴀʟʟᴇ §fғᴏʀᴢᴇ ᴅᴇʟʟ'ᴏʀᴅɪɴᴇ"))
-                .setItemFlags(List.of(ItemFlag.HIDE_ATTRIBUTES, ItemFlag.HIDE_ENCHANTS, ItemFlag.HIDE_POTION_EFFECTS, ItemFlag.HIDE_PLACED_ON, ItemFlag.HIDE_UNBREAKABLE, ItemFlag.HIDE_POTION_EFFECTS))
+                .setItemFlags(List.of(ItemFlag.HIDE_ATTRIBUTES, ItemFlag.HIDE_ENCHANTS, ItemFlag.HIDE_PLACED_ON, ItemFlag.HIDE_UNBREAKABLE))
                 .clearEnchantments()
                 .clearModifiers();
     }

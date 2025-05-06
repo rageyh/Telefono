@@ -32,7 +32,7 @@ public class ItemCallEnd extends SimpleItem {
         return new ItemBuilder(CustomStack.getInstance("_iainternal:icon_cancel").getItemStack())
                 .setDisplayName("§c§lʀɪғɪᴜᴛᴀ/ᴛᴇʀᴍɪɴᴀ ᴄʜɪᴀᴍᴀᴛᴀ")
                 .setLegacyLore(List.of("§7ᴄʟɪᴄᴄᴀ ᴘᴇʀ ʀɪғɪᴜᴛᴀʀᴇ ᴏ ᴛᴇʀᴍɪɴᴀᴛᴀ ᴜɴᴀ ᴄʜɪᴀᴍᴀᴛᴀ"))
-                .setItemFlags(List.of(ItemFlag.HIDE_ATTRIBUTES, ItemFlag.HIDE_ENCHANTS, ItemFlag.HIDE_POTION_EFFECTS, ItemFlag.HIDE_PLACED_ON, ItemFlag.HIDE_UNBREAKABLE, ItemFlag.HIDE_POTION_EFFECTS))
+                .setItemFlags(List.of(ItemFlag.HIDE_ATTRIBUTES, ItemFlag.HIDE_ENCHANTS, ItemFlag.HIDE_PLACED_ON, ItemFlag.HIDE_UNBREAKABLE))
                 .clearEnchantments()
                 .clearModifiers();
     }

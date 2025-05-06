@@ -28,7 +28,7 @@ public class ItemCallAmbulance extends SimpleItem {
         return new ItemBuilder(Telefono.getHeadDatabaseAPI().getItemHead("23265"))
                 .setDisplayName("§c§lᴇᴍs")
                 .setLegacyLore(List.of("§7ᴄʟɪᴄᴄᴀ ᴘᴇʀ ᴄʜɪᴀᴍᴀʀᴇ ᴜɴ §fᴀᴍʙᴜʟᴀɴᴢᴀ", "§7ᴀʟʟᴀ ᴛᴜᴀ ᴘᴏsɪᴢɪᴏɴᴇ"))
-                .setItemFlags(List.of(ItemFlag.HIDE_ATTRIBUTES, ItemFlag.HIDE_ENCHANTS, ItemFlag.HIDE_POTION_EFFECTS, ItemFlag.HIDE_PLACED_ON, ItemFlag.HIDE_UNBREAKABLE, ItemFlag.HIDE_POTION_EFFECTS))
+                .setItemFlags(List.of(ItemFlag.HIDE_ATTRIBUTES, ItemFlag.HIDE_ENCHANTS, ItemFlag.HIDE_PLACED_ON, ItemFlag.HIDE_UNBREAKABLE))
                 .clearEnchantments()
                 .clearModifiers();
     }

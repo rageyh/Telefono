@@ -33,7 +33,7 @@ public final class SubCommandSim extends SimpleSubCommand {
         final ItemStack sim = new ItemBuilder(CustomStack.getInstance("iageneric:sim").getItemStack())
                 .setDisplayName("§fSIM")
                 .setLegacyLore(List.of(" ", "§7Numero: §f%number%", "§o§8Utilizzala su un telefono"))
-                .setItemFlags(List.of(ItemFlag.HIDE_ATTRIBUTES, ItemFlag.HIDE_ENCHANTS, ItemFlag.HIDE_POTION_EFFECTS, ItemFlag.HIDE_PLACED_ON, ItemFlag.HIDE_UNBREAKABLE, ItemFlag.HIDE_POTION_EFFECTS))
+                .setItemFlags(List.of(ItemFlag.HIDE_ATTRIBUTES, ItemFlag.HIDE_ENCHANTS, ItemFlag.HIDE_PLACED_ON, ItemFlag.HIDE_UNBREAKABLE))
                 .get();
 
         if (args.length == 0) {

@@ -19,7 +19,7 @@ public class BackItem extends PageItem {
     @Override
     public ItemProvider getItemProvider(final PagedGui<?> gui) {
         final ItemBuilder builder = new ItemBuilder(CustomStack.getInstance("mcicons:icon_back_white").getItemStack())
-                .setItemFlags(List.of(ItemFlag.HIDE_ATTRIBUTES, ItemFlag.HIDE_ENCHANTS, ItemFlag.HIDE_POTION_EFFECTS, ItemFlag.HIDE_PLACED_ON, ItemFlag.HIDE_UNBREAKABLE, ItemFlag.HIDE_POTION_EFFECTS));
+                .setItemFlags(List.of(ItemFlag.HIDE_ATTRIBUTES, ItemFlag.HIDE_ENCHANTS, ItemFlag.HIDE_PLACED_ON, ItemFlag.HIDE_UNBREAKABLE));
         builder.setDisplayName("§7ᴘᴀɢɪɴᴀ ᴘʀᴇᴄᴇᴅᴇɴᴛᴇ")
                 .addLoreLines(gui.hasPreviousPage()
                         ? "§7ᴠᴀɪ ᴀʟʟᴀ ᴘᴀɢɪɴᴀ §e" + gui.getCurrentPage() + "§7/§e" + gui.getPageAmount()
