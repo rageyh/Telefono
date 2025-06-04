@@ -1,9 +1,9 @@
 package me.zrageyh.telefono.cache;
 
 import lombok.Getter;
-import me.zrageyh.relocated.lib.Common;
 import me.zrageyh.telefono.Telefono;
 import me.zrageyh.telefono.manager.Database;
+import org.mineacademy.fo.Common;
 
 import java.util.LinkedList;
 import java.util.List;

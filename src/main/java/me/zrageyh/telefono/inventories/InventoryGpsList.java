@@ -1,8 +1,6 @@
 package me.zrageyh.telefono.inventories;
 
-import dev.lone.rpghuds.core.RPGHuds;
-import dev.lone.rpghuds.core.data.CompassHud;
-import dev.lone.rpghuds.core.data.Hud;
+
 import me.arcaniax.hdb.api.HeadDatabaseAPI;
 import me.zrageyh.telefono.Telefono;
 import me.zrageyh.telefono.model.GpsHead;
@@ -104,11 +102,11 @@ public class InventoryGpsList implements InventoryImpl {
     }
 
     private void startGps(Player player, Location location) {
-        CompassHud.Destination destination = new CompassHud.Destination(location);
+       /* CompassHud.Destination destination = new CompassHud.Destination(location);
         RPGHuds rpgHuds = RPGHuds.inst();
 
         Hud<?> compassHud = rpgHuds.getPlayerHud(player, "rpghuds:compass");
         CompassHud compassHud1 = (CompassHud) compassHud;
-        compassHud1.setDestination(destination);
+        compassHud1.setDestination(destination);*/
     }
 }

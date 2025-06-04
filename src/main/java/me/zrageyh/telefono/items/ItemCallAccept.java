@@ -33,7 +33,7 @@ public class ItemCallAccept extends SimpleItem {
         return new ItemBuilder(CustomStack.getInstance("mcicons:icon_confirm").getItemStack())
                 .setDisplayName("§a§lᴀᴄᴄᴇᴛᴛᴀ ᴄʜɪᴀᴍᴀᴛᴀ")
                 .setLegacyLore(List.of("§7ᴄʟɪᴄᴄᴀ ᴘᴇʀ ᴀᴄᴄᴇᴛᴛᴀʀᴇ ʟᴀ ᴄʜɪᴀᴍᴀᴛᴀ ɪɴ ᴀʀʀɪᴠᴏ"))
-                .setItemFlags(List.of(ItemFlag.HIDE_ATTRIBUTES, ItemFlag.HIDE_ENCHANTS, ItemFlag.HIDE_POTION_EFFECTS, ItemFlag.HIDE_PLACED_ON, ItemFlag.HIDE_UNBREAKABLE, ItemFlag.HIDE_POTION_EFFECTS))
+                .setItemFlags(List.of(ItemFlag.HIDE_ATTRIBUTES, ItemFlag.HIDE_ENCHANTS, ItemFlag.HIDE_PLACED_ON, ItemFlag.HIDE_UNBREAKABLE))
                 .clearEnchantments()
                 .clearModifiers();
     }

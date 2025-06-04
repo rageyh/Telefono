@@ -1,6 +1,6 @@
 package me.zrageyh.telefono.items;
 
-import me.zrageyh.cadaveri.util.Utils;
+
 import me.zrageyh.telefono.Telefono;
 import net.wesjd.anvilgui.AnvilGUI;
 import org.bukkit.Bukkit;
@@ -37,7 +37,7 @@ public class ItemCallPolice extends SimpleItem {
                     target.sendMessage("§f ");
                     target.sendMessage("§f §9§lGFPD");
                     target.sendMessage("§7 Il cittadino §f%s §7ha richiesto l'intervento delle §fforze dell'ordine!".formatted(player.getName()));
-                    target.sendMessage("§7 Luogo: §f%s".formatted(Utils.getRegionByPlayer(player)));
+               //     target.sendMessage("§7 Luogo: §f%s".formatted(Utils.getRegionByPlayer(player)));
                     target.sendMessage("§7 Segnalazione: §f%s".formatted(reason));
                     target.sendMessage("§7 X: §f" + player.getLocation().getX() + "§7, Y: §f" + player.getLocation().getY() + "§7, Z: §f" + player.getLocation().getZ());
                     SimpleComponent.of("§f §9[AVVIA GPS]").onHover("§7Clicca per avviare il gps").onClickRunCmd("/cadaveri startgps %d/%d/%d true".formatted((int) player.getLocation().getX(), (int) player.getLocation().getY(), (int) player.getLocation().getZ())).send(target);
@@ -50,7 +50,7 @@ public class ItemCallPolice extends SimpleItem {
         return new ItemBuilder(Telefono.getHeadDatabaseAPI().getItemHead("16669"))
                 .setDisplayName("§9§lʟsᴘᴅ")
                 .setLegacyLore(List.of("§7ᴄʟɪᴄᴄᴀ ᴘᴇʀ sᴇɢɴᴀʟᴀʀᴇ ᴜɴ'ᴇᴍᴇʀɢᴇɴᴢᴀ", "§7ᴀʟʟᴇ §fғᴏʀᴢᴇ ᴅᴇʟʟ'ᴏʀᴅɪɴᴇ"))
-                .setItemFlags(List.of(ItemFlag.HIDE_ATTRIBUTES, ItemFlag.HIDE_ENCHANTS, ItemFlag.HIDE_POTION_EFFECTS, ItemFlag.HIDE_PLACED_ON, ItemFlag.HIDE_UNBREAKABLE, ItemFlag.HIDE_POTION_EFFECTS))
+                .setItemFlags(List.of(ItemFlag.HIDE_ATTRIBUTES, ItemFlag.HIDE_ENCHANTS,  ItemFlag.HIDE_PLACED_ON, ItemFlag.HIDE_UNBREAKABLE))
                 .clearEnchantments()
                 .clearModifiers();
     }

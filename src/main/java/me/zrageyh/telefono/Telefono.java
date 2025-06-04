@@ -16,6 +16,7 @@ import org.bukkit.Bukkit;
 import org.bukkit.event.Listener;
 import org.bukkit.inventory.ItemFlag;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.plugin.Plugin;
 import org.mineacademy.fo.ASCIIUtil;
 import org.mineacademy.fo.Common;
 import org.mineacademy.fo.Messenger;
@@ -69,7 +70,7 @@ public final class Telefono extends SimplePlugin {
         initDatabase();
         Valid.checkBoolean(Common.doesPluginExist("ItemsAdder"), "ItemsAdder non trovato, controlla che sia inserito come plugin.");
         Valid.checkBoolean(Common.doesPluginExist("HeadDatabase"), "HeadDatabase non trovato, controlla che sia inserito come plugin.");
-        Valid.checkBoolean(Common.doesPluginExist("RPGhuds"), "RPGhuds non trovato, controlla che sia inserito come plugin.");
+       // Valid.checkBoolean(Common.doesPluginExist("RPGhuds"), "RPGhuds non trovato, controlla che sia inserito come plugin.");
     }
 
     @Override
@@ -116,10 +117,10 @@ public final class Telefono extends SimplePlugin {
 
     private void loadGlobalIngredients() {
 
-        itemInvisible = new ItemBuilder(CustomStack.getInstance("iageneric:blue_ring").getItemStack())
+        itemInvisible = new ItemBuilder(CustomStack.getInstance("mcicons:icon_time_day").getItemStack())
                 .setDisplayName("")
                 .setLegacyLore(List.of(""))
-                .setItemFlags(List.of(ItemFlag.HIDE_ATTRIBUTES, ItemFlag.HIDE_ENCHANTS, ItemFlag.HIDE_POTION_EFFECTS, ItemFlag.HIDE_PLACED_ON, ItemFlag.HIDE_UNBREAKABLE, ItemFlag.HIDE_POTION_EFFECTS))
+                .setItemFlags(List.of(ItemFlag.HIDE_ATTRIBUTES, ItemFlag.HIDE_ENCHANTS, ItemFlag.HIDE_PLACED_ON, ItemFlag.HIDE_UNBREAKABLE))
                 .clearEnchantments()
                 .clearModifiers().get();
 
@@ -151,7 +152,7 @@ public final class Telefono extends SimplePlugin {
 
         BORDER = new ItemBuilder(CompMaterial.BLACK_STAINED_GLASS_PANE.getMaterial())
                 .setDisplayName("")
-                .setItemFlags(List.of(ItemFlag.HIDE_ATTRIBUTES, ItemFlag.HIDE_ENCHANTS, ItemFlag.HIDE_POTION_EFFECTS, ItemFlag.HIDE_PLACED_ON, ItemFlag.HIDE_UNBREAKABLE, ItemFlag.HIDE_POTION_EFFECTS))
+                .setItemFlags(List.of(ItemFlag.HIDE_ATTRIBUTES, ItemFlag.HIDE_ENCHANTS, ItemFlag.HIDE_PLACED_ON, ItemFlag.HIDE_UNBREAKABLE))
                 .clearEnchantments()
                 .clearModifiers()
                 .clearLore();
@@ -175,7 +176,7 @@ public final class Telefono extends SimplePlugin {
         return new ItemBuilder(itemInvisible)
                 .setDisplayName(name)
                 .setLegacyLore(List.of(lore))
-                .setItemFlags(List.of(ItemFlag.HIDE_ATTRIBUTES, ItemFlag.HIDE_ENCHANTS, ItemFlag.HIDE_POTION_EFFECTS, ItemFlag.HIDE_PLACED_ON, ItemFlag.HIDE_UNBREAKABLE, ItemFlag.HIDE_POTION_EFFECTS))
+                .setItemFlags(List.of(ItemFlag.HIDE_ATTRIBUTES, ItemFlag.HIDE_ENCHANTS, ItemFlag.HIDE_PLACED_ON, ItemFlag.HIDE_UNBREAKABLE))
                 .clearEnchantments()
                 .clearModifiers().get();
     }

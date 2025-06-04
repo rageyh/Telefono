@@ -41,7 +41,7 @@ public class ItemAddContatto extends SimpleItem {
         return new ItemBuilder(CustomStack.getInstance("mcicons:icon_plus").getItemStack())
                 .setDisplayName("§f§lᴀɢɢɪᴜɴɢɪ ᴄᴏɴᴛᴀᴛᴛᴏ")
                 .setLegacyLore(List.of("§7ᴄʟɪᴄᴄᴀ ᴘᴇʀ §fᴀɢɢɪᴜɴɢᴇʀᴇ §7ᴜɴ ᴄᴏɴᴛᴀᴛᴛᴏ", "§7ᴀʟʟᴀ ᴛᴜᴀ ʀᴜʙʀɪᴄᴀ"))
-                .setItemFlags(List.of(ItemFlag.HIDE_ATTRIBUTES, ItemFlag.HIDE_ENCHANTS, ItemFlag.HIDE_POTION_EFFECTS, ItemFlag.HIDE_PLACED_ON, ItemFlag.HIDE_UNBREAKABLE, ItemFlag.HIDE_POTION_EFFECTS))
+                .setItemFlags(List.of(ItemFlag.HIDE_ATTRIBUTES, ItemFlag.HIDE_ENCHANTS, ItemFlag.HIDE_PLACED_ON, ItemFlag.HIDE_UNBREAKABLE))
                 .clearEnchantments()
                 .clearModifiers();
     }

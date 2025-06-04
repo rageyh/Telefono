@@ -4,7 +4,7 @@ main: me.zrageyh.telefono.Telefono
 api-version: '1.21'
 authors: [ zRageyh_ ]
 description: Implementazione del telefono stile fivem
-depend: [ HeadDatabase, ItemsAdder, RPGhuds ]
+depend: [ HeadDatabase, ItemsAdder]
 softdepend: [ CMI, DiscordSRV ]
 libraries:
   - 'com.zaxxer:HikariCP:6.0.0'
