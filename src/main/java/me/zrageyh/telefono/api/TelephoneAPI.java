@@ -38,6 +38,7 @@ public class TelephoneAPI {
         return newItem;
     }
 
+
     public static boolean hasNumber(final ItemStack item) {
         final String number = Utils.getNBTTag(item, "telephone_number");
         return number != null && !number.equals("nessuno");
