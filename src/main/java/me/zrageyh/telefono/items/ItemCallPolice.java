@@ -21,11 +21,11 @@ import java.util.List;
 public class ItemCallPolice extends SimpleItem {
 
 
-    public ItemCallPolice(ItemStack itemStack) {
+    public ItemCallPolice(final ItemStack itemStack) {
         super(itemStack);
     }
 
-    public static void callPolice(Player player, String reason) {
+    public static void callPolice(final Player player, final String reason) {
         player.sendMessage("§f ");
         player.sendMessage("§f §9§lGFPD");
         player.sendMessage("§f §7Hai §fcorrettamente §7inviato una richiesta di soccorso");
@@ -56,20 +56,20 @@ public class ItemCallPolice extends SimpleItem {
     }
 
     @Override
-    public void handleClick(@NotNull ClickType clickType, @NotNull Player player, @NotNull InventoryClickEvent event) {
+    public void handleClick(@NotNull final ClickType clickType, @NotNull final Player player, @NotNull final InventoryClickEvent event) {
 
         new AnvilGUI.Builder()
                 .title("ᴍᴏᴛɪᴠᴏ ᴄʜɪᴀᴍᴀᴛᴀ")
                 .plugin(Telefono.getInstance())
-                .itemLeft(Telefono.itemInvisible)
-                .itemRight(Telefono.itemInvisible)
+                .itemLeft(Telefono.getServiceManager().getItemManager().getItemInvisible())
+                .itemRight(Telefono.getServiceManager().getItemManager().getItemInvisible())
                 .onClick((slot, state) -> {
 
                     if (slot != AnvilGUI.Slot.OUTPUT) {
                         return Collections.emptyList();
                     }
 
-                    String reason = state.getText().trim();
+                    final String reason = state.getText().trim();
                     callPolice(player, reason);
                     return List.of(AnvilGUI.ResponseAction.close());
                 }).open(player);

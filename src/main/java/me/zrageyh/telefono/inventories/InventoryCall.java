@@ -28,7 +28,7 @@ public class InventoryCall implements InventoryImpl {
     }
 
     @Override
-    public void open(Player player) {
+    public void open(final Player player) {
         Utils.openGui(getInventory(), player, "ɢᴇsᴛɪᴏɴᴇ ᴄʜɪᴀᴍᴀᴛᴀ");
     }
 }

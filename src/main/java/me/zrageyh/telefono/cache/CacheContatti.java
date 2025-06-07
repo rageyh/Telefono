@@ -3,66 +3,125 @@ package me.zrageyh.telefono.cache;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import lombok.Getter;
+import me.zrageyh.telefono.manager.Database;
+import me.zrageyh.telefono.manager.ServiceManager;
 import me.zrageyh.telefono.model.Contatto;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
-public class CacheContatti {
+public class CacheContatti implements CacheInterface<Contatto> {
 
     @Getter
     private final Cache<String, List<Contatto>> cache;
-    private final ExecutorService executorService;
+    private final ExecutorService executor;
 
-
-    public CacheContatti() {
+    public CacheContatti(final ExecutorService sharedExecutor) {
         cache = Caffeine.newBuilder()
-                .expireAfterWrite(20, TimeUnit.MINUTES)
+                .expireAfterWrite(15, TimeUnit.MINUTES)
+                .expireAfterAccess(5, TimeUnit.MINUTES)
+                .maximumSize(1000)
+                .recordStats()
                 .build();
-        executorService = Executors.newCachedThreadPool();
+        executor = sharedExecutor;
     }
 
     public void update(final Contatto data) {
-        cache.getIfPresent(data.getSim()).removeIf((c) -> c.getId() == data.getId());
-        cache.getIfPresent(data.getSim()).add(data);
+        final List<Contatto> contattoList = cache.getIfPresent(data.getSim());
+        if (contattoList != null) {
+            contattoList.removeIf(c -> c.getId() == data.getId());
+            contattoList.add(data);
+        }
+    }
+
+    @Override
+    public void update(final String sim, final int id, final Contatto data) {
+        final List<Contatto> contattoList = cache.getIfPresent(sim);
+        if (contattoList != null) {
+            contattoList.removeIf(c -> c.getId() == id);
+            contattoList.add(data);
+        }
     }
 
     public void put(final String sim, final Contatto data) {
         List<Contatto> contattoList = cache.getIfPresent(sim);
 
-        if (contattoList == null || contattoList.isEmpty()) {
+        if (contattoList == null) {
             contattoList = new ArrayList<>();
             contattoList.add(data);
             cache.put(sim, contattoList);
             return;
         }
+
         if (!contattoList.contains(data)) {
             contattoList.add(data);
         }
-
     }
 
+    @Override
     public void remove(final String sim, final int id) {
-        cache.getIfPresent(sim).removeIf((c) -> c.getId() == id);
+        final List<Contatto> contattoList = cache.getIfPresent(sim);
+        if (contattoList != null) {
+            contattoList.removeIf(c -> c.getId() == id);
+        }
     }
-
 
     public boolean isSaved(final String sim, final String number) {
-        return cache.getIfPresent(sim) != null && cache.getIfPresent(sim).stream().anyMatch((c) -> c.getNumber().equalsIgnoreCase(number));
+        final List<Contatto> contattoList = cache.getIfPresent(sim);
+        return contattoList != null && contattoList.stream()
+                .anyMatch(c -> c.getNumber().equalsIgnoreCase(number));
     }
 
-
-    public Optional<List<Contatto>> get(final String sim) {
+    public CompletableFuture<Optional<List<Contatto>>> get(final String sim) {
         final List<Contatto> cachedContatti = cache.getIfPresent(sim);
         if (cachedContatti != null && !cachedContatti.isEmpty()) {
-            return Optional.of(cachedContatti);
+            return CompletableFuture.completedFuture(Optional.of(cachedContatti));
         }
-        return Optional.empty();
+
+        return Database.getInstance().getContattiBySim(sim)
+                .thenApply(contatti -> {
+                    if (!contatti.isEmpty()) {
+                        cache.put(sim, contatti);
+                        return Optional.of(contatti);
+                    }
+                    return Optional.empty();
+                });
     }
 
+    @Override
+    public void loadDataToCache() {
+        Database.getInstance().getAllContatti()
+                .thenAccept(allContatti -> {
+                    allContatti.forEach((sim, contatti) -> {
+                        if (!contatti.isEmpty()) {
+                            cache.put(sim, contatti);
+                        }
+                    });
+                });
+    }
+
+    /* Cache warming per performance migliori all'avvio */
+    public CompletableFuture<Void> warmCache() {
+        return CompletableFuture.runAsync(() -> {
+            loadDataToCache();
+        }, executor);
+    }
+
+    /* Cleanup per shutdown */
+    public void shutdown() {
+        ServiceManager.shudown(executor);
+        cache.invalidateAll();
+    }
+
+    /* Statistiche cache per monitoring */
+    public void logCacheStats() {
+        final var stats = cache.stats();
+        System.out.println("CacheContatti - Hit Rate: " + String.format("%.2f%%", stats.hitRate() * 100));
+    }
 }
 

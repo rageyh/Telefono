@@ -18,14 +18,15 @@ import java.util.List;
 import java.util.Optional;
 
 import static me.zrageyh.telefono.Telefono.*;
+import static me.zrageyh.telefono.manager.ItemManager.GUI_TITLE_MAIN;
 
 
 public class InventoryTelephoneShulker implements Listener {
 
 
-    public void openInventory(final String sim, Player player) {
+    public void openInventory(final String sim, final Player player) {
         getCacheAbbonamento().get(sim).thenAccept(opt_abbonamento -> {
-            final ItemStack abbonamento = new ItemBuilder(itemInvisible)
+            final ItemStack abbonamento = new ItemBuilder(getServiceManager().getItemManager().getItemInvisible())
                     .setDisplayName("§f§lᴀʙʙᴏɴᴀᴍᴇɴᴛᴏ")
                     .setLegacyLore(getAbbonamentoLore(opt_abbonamento))
                     .clearEnchantments()
@@ -42,14 +43,14 @@ public class InventoryTelephoneShulker implements Listener {
 
             shulkerInv.setItem(12, abbonamento);
 
-            shulkerInv.setItem(13, itemDarkChat);
-            shulkerInv.setItem(14, itemTwitch);
+            shulkerInv.setItem(13, getServiceManager().getItemManager().getItemDarkChat());
+            shulkerInv.setItem(14, getServiceManager().getItemManager().getItemTwitch());
             // slot 13: illegale non disponibile
             // slot 14: tiwtch non disponibile
             // slot
-            shulkerInv.setItem(21, itemEmergency);
-            shulkerInv.setItem(22, itemFattura);
-            shulkerInv.setItem(23, itemReport);
+            shulkerInv.setItem(21, getServiceManager().getItemManager().getItemEmergency());
+            shulkerInv.setItem(22, getServiceManager().getItemManager().getItemFattura());
+            shulkerInv.setItem(23, getServiceManager().getItemManager().getItemReport());
             // slot 23: report non disponibile
 
             meta.setBlockState(shulker);
@@ -62,11 +63,11 @@ public class InventoryTelephoneShulker implements Listener {
 
     }
 
-    private @NotNull List<String> getAbbonamentoLore(Optional<Abbonamento> opt_abbonamento) {
+    private @NotNull List<String> getAbbonamentoLore(final Optional<Abbonamento> opt_abbonamento) {
         final List<String> lore;
 
         if (opt_abbonamento.isPresent()) {
-            Abbonamento abbonamento = opt_abbonamento.get();
+            final Abbonamento abbonamento = opt_abbonamento.get();
             lore = Arrays.asList(
                     "§7ᴛɪᴘᴏ: §f%s".formatted(abbonamento.getAbbonamento()),
                     "§7ᴍᴇssᴀɢɢɪ ʀɪᴍᴀɴᴇɴᴛɪ: §f%d".formatted(abbonamento.getMessages()),

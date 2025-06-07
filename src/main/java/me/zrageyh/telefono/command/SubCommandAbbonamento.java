@@ -43,7 +43,6 @@ public final class SubCommandAbbonamento extends SimpleSubCommand {
         String subscription = args[1];
 
         Map<TipoAbbonamento, Abbonamento> mappaAbbonamenti = new HashMap<>() {
-
             {
                 put(TipoAbbonamento.BASIC, new Abbonamento("Basic", 50, 10));
                 put(TipoAbbonamento.BUSINESS, new Abbonamento("Business", 150, 30));
@@ -55,7 +54,7 @@ public final class SubCommandAbbonamento extends SimpleSubCommand {
         Optional<Abbonamento> opt_subscription = findSubscription(mappaAbbonamenti, subscription);
 
         if (opt_subscription.isEmpty()) {
-            tellError("&aAbbonamento non trovato scegli tra: " + Arrays.toString(abbonamenti.toArray()).replace("[", "").replace("]", ""));
+            tellError("&cAbbonamento non trovato! Scegli tra: " + Arrays.toString(abbonamenti.toArray()).replace("[", "").replace("]", ""));
             return;
         }
 
@@ -67,25 +66,29 @@ public final class SubCommandAbbonamento extends SimpleSubCommand {
         Abbonamento abbonamento_new = opt_subscription.get();
         abbonamento_new.setSim(number);
 
-        Telefono.getCacheAbbonamento().getCache().put(number, abbonamento_new);
-        Database.getInstance().saveSubscription(abbonamento_new);
+        // Operazioni asincrone per evitare lag
+        Telefono.getCacheAbbonamento().update(abbonamento_new);
+        
+        Database.getInstance().saveSubscription(abbonamento_new).thenRun(() -> {
+            Optional<Player> target = TelephoneAPI.getPlayerByNumber(number);
 
-        Optional<Player> target = TelephoneAPI.getPlayerByNumber(number);
-
-        if (target.isPresent()) {
-            target.get().sendMessage("§9 ");
-            target.get().sendMessage("§9 §lɢ-ᴍᴏʙɪʟᴇ");
-            target.get().sendMessage("§9 §7ʟ'ᴀʙʙᴏɴᴀᴍᴇɴᴛᴏ ᴅᴇʟ ᴛᴜᴏ ᴛᴇʟᴇғᴏɴᴏ (§9%s§7) è sᴛᴀᴛᴏ ʀɪɴɴᴏᴠᴀᴛᴏ".formatted(number));
-            target.get().sendMessage("§9 §7ᴀʙʙᴏɴᴀᴍᴇɴᴛᴏ: §9" + abbonamento_new.getAbbonamento());
-            target.get().sendMessage("§9 §7ᴍᴇssᴀɢɢɪ ᴅɪsᴘᴏɴɪʙɪʟɪ: §9" + abbonamento_new.getMessages());
-            target.get().sendMessage("§9 §7ᴍɪɴᴜᴛɪ ᴄʜɪᴀᴍᴀᴛᴀ: §9" + abbonamento_new.getCalls());
-            target.get().sendMessage("§9 ");
-            target.get().playSound(target.get().getLocation(), Sound.BLOCK_NOTE_BLOCK_PLING, 5F, 1F);
-        }
+            if (target.isPresent()) {
+                target.get().sendMessage("§9 ");
+                target.get().sendMessage("§9 §lɢ-ᴍᴏʙɪʟᴇ");
+                target.get().sendMessage("§9 §7ʟ'ᴀʙʙᴏɴᴀᴍᴇɴᴛᴏ ᴅᴇʟ ᴛᴜᴏ ᴛᴇʟᴇғᴏɴᴏ (§9%s§7) è sᴛᴀᴛᴏ ʀɪɴɴᴏᴠᴀᴛᴏ".formatted(number));
+                target.get().sendMessage("§9 §7ᴀʙʙᴏɴᴀᴍᴇɴᴛᴏ: §9" + abbonamento_new.getAbbonamento());
+                target.get().sendMessage("§9 §7ᴍᴇssᴀɢɢɪ ᴅɪsᴘᴏɴɪʙɪʟɪ: §9" + abbonamento_new.getMessages());
+                target.get().sendMessage("§9 §7ᴍɪɴᴜᴛɪ ᴄʜɪᴀᴍᴀᴛᴀ: §9" + abbonamento_new.getCalls());
+                target.get().sendMessage("§9 ");
+                target.get().playSound(target.get().getLocation(), Sound.BLOCK_NOTE_BLOCK_PLING, 5F, 1F);
+            }
+        }).exceptionally(throwable -> {
+            tellError("&cErrore durante il salvataggio dell'abbonamento: " + throwable.getMessage());
+            return null;
+        });
 
         tellSuccess("&aHai rinnovato l'abbonamento del numero %s a %s".formatted(number, abbonamento_new.getAbbonamento()));
         getPlayer().playSound(getPlayer().getLocation(), Sound.BLOCK_NOTE_BLOCK_PLING, 5F, 1F);
-
     }
 
     public Optional<Abbonamento> findSubscription(Map<TipoAbbonamento, Abbonamento> mappaAbbonamenti, String nomeAbbonamento) {

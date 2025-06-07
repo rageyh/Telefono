@@ -33,4 +33,4 @@ Password: ''
 #
 # Usa 'jdbc:mysql://' se stai eseguendo un database mysql.
 # Usa 'jdbc:mariadb://' se stai eseguendo un database mariadb.
-Line: "jdbc:mysql://{host}/{database}?autoReconnect=false&useSSL=false"
+Line: "jdbc:mariadb://{host}/{database}?autoReconnect=false&useSSL=false"

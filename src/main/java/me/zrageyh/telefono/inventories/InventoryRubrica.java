@@ -38,14 +38,10 @@ public class InventoryRubrica implements InventoryImpl {
 
     @Override
     public Gui getInventory() {
+        return buildGui(new ArrayList<>());
+    }
 
-        final ItemStack item = player.getInventory().getItemInMainHand();
-        final String sim = TelephoneAPI.getTelephoneNumber(item);
-
-        final Optional<List<Contatto>> opt_contatti = Telefono.getCacheContatti().get(sim);
-
-
-        final List<Contatto> contatti = opt_contatti.orElseGet(ArrayList::new);
+    private Gui buildGui(final List<Contatto> contatti) {
 
         final List<Item> contattiItems = contatti.stream().sorted(Comparator.comparing(Contatto::getName)).map(contatto -> new SimpleItem(new ItemBuilder(Material.PAPER)
                 .setDisplayName("§7ɴᴏᴍᴇ: §f%s".formatted(contatto.getFullName()))
@@ -62,8 +58,8 @@ public class InventoryRubrica implements InventoryImpl {
                         final AnvilGUI.Builder surnameContatto = new AnvilGUI.Builder()
                                 .title("ɴᴜᴏᴠᴏ ᴄᴏɢɴᴏᴍᴇ")
                                 .plugin(Telefono.getInstance())
-                                .itemLeft(Telefono.itemInvisible)
-                                .itemRight(Telefono.itemInvisible)
+                                .itemLeft(Telefono.getServiceManager().getItemManager().getItemInvisible())
+                                .itemRight(Telefono.getServiceManager().getItemManager().getItemInvisible())
                                 .onClick((slot, state) -> {
 
                                     if (slot != AnvilGUI.Slot.OUTPUT) {
@@ -83,8 +79,8 @@ public class InventoryRubrica implements InventoryImpl {
 
                         new AnvilGUI.Builder().title("ɴᴜᴏᴠᴏ ɴᴏᴍᴇ")
                                 .plugin(Telefono.getInstance())
-                                .itemLeft(Telefono.itemInvisible)
-                                .itemRight(Telefono.itemInvisible).onClick((slot, state) -> {
+                                .itemLeft(Telefono.getServiceManager().getItemManager().getItemInvisible())
+                                .itemRight(Telefono.getServiceManager().getItemManager().getItemInvisible()).onClick((slot, state) -> {
 
                                     if (slot != AnvilGUI.Slot.OUTPUT) {
                                         return Collections.emptyList();
@@ -258,6 +254,14 @@ public class InventoryRubrica implements InventoryImpl {
 
     @Override
     public void open(final Player player) {
-        Utils.openGui(getInventory(), player, "ʀᴜʙʀɪᴄᴀ");
+        final ItemStack item = player.getInventory().getItemInMainHand();
+        final String sim = TelephoneAPI.getTelephoneNumber(item);
+
+        Telefono.getCacheContatti().get(sim).thenAcceptAsync(opt_contatti -> {
+            final List<Contatto> contatti = opt_contatti.orElseGet(ArrayList::new);
+            Common.runLater(() -> {
+                Utils.openGui(buildGui(contatti), player, "ʀᴜʙʀɪᴄᴀ");
+            });
+        });
     }
 }

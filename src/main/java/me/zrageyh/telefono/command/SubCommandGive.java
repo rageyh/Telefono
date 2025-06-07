@@ -1,10 +1,7 @@
 package me.zrageyh.telefono.command;
 
-import dev.lone.itemsadder.api.CustomStack;
-import org.bukkit.inventory.ItemStack;
+import me.zrageyh.telefono.Telefono;
 import org.mineacademy.fo.command.SimpleSubCommand;
-import org.mineacademy.fo.menu.model.ItemCreator;
-import org.mineacademy.fo.remain.nbt.NBTItem;
 
 public final class SubCommandGive extends SimpleSubCommand {
 
@@ -19,22 +16,7 @@ public final class SubCommandGive extends SimpleSubCommand {
     @Override
     protected void onCommand() {
         checkConsole();
-
-        //TODO CAMBIARE ITEM
-		/*ItemStack telephone = ItemCreator.of(new ItemStack(Material.STICK))
-				.name("&fTelefono")
-				.lore(" ", "&7Numero: &fnessuno")
-				.make();*/
-        final ItemStack telephone = ItemCreator.of(CustomStack.getInstance("iageneric:phone").getItemStack())
-                .name("&fTelefono")
-                .lore("  ", "&7Numero: &fnessuno")
-                .make();
-
-        final NBTItem nbtItem = new NBTItem(telephone);
-        nbtItem.setString("telephone_number", "nessuno");
-
-        getPlayer().getInventory().addItem(nbtItem.getItem());
-
+        getPlayer().getInventory().addItem(Telefono.getServiceManager().getItemManager().getItemTelephone());
         tellSuccess("&aHai ricevuto un telefono");
     }
 }

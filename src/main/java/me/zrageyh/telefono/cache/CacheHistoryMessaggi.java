@@ -2,7 +2,9 @@ package me.zrageyh.telefono.cache;
 
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
+import lombok.Getter;
 import me.zrageyh.telefono.manager.Database;
+import me.zrageyh.telefono.manager.ServiceManager;
 import me.zrageyh.telefono.model.history.HistoryMessaggio;
 
 import java.util.ArrayList;
@@ -14,18 +16,53 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
-public class CacheHistoryMessaggi {
-
+@Getter
+public class CacheHistoryMessaggi implements CacheInterface<HistoryMessaggio> {
 
     private final Cache<String, List<HistoryMessaggio>> cache;
-    private final ExecutorService executorService;
+    private final ExecutorService executor;
 
-
-    public CacheHistoryMessaggi() {
+    public CacheHistoryMessaggi(final ExecutorService sharedExecutor) {
         cache = Caffeine.newBuilder()
-                .expireAfterWrite(20, TimeUnit.MINUTES)
+                .expireAfterWrite(8, TimeUnit.MINUTES)
+                .expireAfterAccess(3, TimeUnit.MINUTES)
+                .maximumSize(300)
+                .recordStats()
                 .build();
-        this.executorService = Executors.newCachedThreadPool();
+        executor = sharedExecutor;
+    }
+
+    @Override
+    public void update(final String sim, final int id, final HistoryMessaggio data) {
+        // Implementazione specifica per cronologia messaggi
+    }
+
+    @Override
+    public void remove(final String sim, final int id) {
+        cache.invalidate(sim);
+    }
+
+    @Override
+    public void loadDataToCache() {
+        // Caricamento lazy per cronologia
+    }
+
+    public CompletableFuture<Optional<List<HistoryMessaggio>>> get(final String sim) {
+        final List<HistoryMessaggio> cached = cache.getIfPresent(sim);
+        if (cached != null) {
+            return CompletableFuture.completedFuture(Optional.of(cached));
+        }
+
+        return Database.getInstance().getHistoryMessaggiBySim(sim)
+                .thenApply(messaggi -> {
+                    cache.put(sim, messaggi);
+                    return Optional.of(messaggi);
+                });
+    }
+
+    public void shutdown() {
+        ServiceManager.shudown(executor);
+        cache.invalidateAll();
     }
 
     public void update(final HistoryMessaggio data) {
@@ -46,38 +83,15 @@ public class CacheHistoryMessaggi {
         cache.put(sim, objectContattoList);
     }
 
-
-    public void remove(final String sim, final int id) {
-        cache.getIfPresent(sim).removeIf((c) -> c.getId() == id);
-    }
-
-    public CompletableFuture<Optional<List<HistoryMessaggio>>> getData(final String sim) {
-        final List<HistoryMessaggio> cachedChiamate = cache.getIfPresent(sim);
-        if (cachedChiamate != null) {
-            return CompletableFuture.completedFuture(Optional.of(cachedChiamate));
-        }
-        return CompletableFuture.supplyAsync(() -> {
-            final List<HistoryMessaggio> chiamate = Database.getInstance().getHistoryMessaggiBySim(sim);
-            if (chiamate == null || chiamate.isEmpty()) {
-                return Optional.empty();
-            }
-            for (final HistoryMessaggio chiamata : chiamate) {
-                cache.getIfPresent(sim).add(chiamata);
-            }
-            return Optional.of(chiamate);
-        }, executorService);
-    }
-
     public CompletableFuture<Optional<List<HistoryMessaggio>>> getForNumber(final String sim, final String number) {
-        return getData(sim).thenApplyAsync(optMessaggi -> {
+        return get(sim).thenApplyAsync(optMessaggi -> {
             if (optMessaggi.isPresent()) {
-                List<HistoryMessaggio> filteredMessaggi = optMessaggi.get().stream()
+                final List<HistoryMessaggio> filteredMessaggi = optMessaggi.get().stream()
                         .filter(msg -> msg.getNumber().equals(number))
                         .collect(Collectors.toList());
                 return filteredMessaggi.isEmpty() ? Optional.empty() : Optional.of(filteredMessaggi);
             }
             return Optional.empty();
-        }, executorService);
+        }, executor);
     }
-
 }

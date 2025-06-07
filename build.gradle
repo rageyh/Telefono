@@ -29,7 +29,9 @@ repositories {
     maven {
         url = "https://repo.codemc.io/repository/maven-snapshots//"
     }
-
+    maven{
+        url = "https://maven.devs.beer/"
+    }
 
 }
 
@@ -38,13 +40,15 @@ dependencies {
     compileOnly "io.papermc.paper:paper-api:1.21.1-R0.1-SNAPSHOT"
     compileOnly 'org.projectlombok:lombok:1.18.38'
     compileOnly 'com.arcaniax:HeadDatabase-API:1.3.2'
-    compileOnly 'com.github.LoneDev6:API-ItemsAdder:3.5.0b'
+    compileOnly 'dev.lone:api-itemsadder:4.0.9'
     implementation group: 'com.github.ben-manes.caffeine', name: 'caffeine', version: '3.1.8'
-    // compileOnly fileTree(dir: buildFile.parent + '\\lib', include: 'RPGhuds_1.2.0-r2.jar')
+    implementation 'com.zaxxer:HikariCP:5.1.0'
+    implementation 'redis.clients:jedis:5.1.0'
+    implementation 'org.mariadb.jdbc:mariadb-java-client:3.3.3'
     implementation fileTree(dir: buildFile.parent + '\\lib', include: 'Foundation-6.9.20.jar')
     compileOnly fileTree(dir: buildFile.parent + '\\lib', include: 'Cadaveri-1.0-all.jar')
     implementation "xyz.xenondevs.invui:invui:1.45"
-    implementation "net.wesjd:anvilgui:1.9.3-SNAPSHOT"
+    implementation "net.wesjd:anvilgui:1.10.5-SNAPSHOT"
 }
 
 def targetJavaVersion = 21
@@ -77,10 +81,20 @@ processResources {
 shadowJar {
     exclude 'org/slf4j/**'
     exclude 'LICENSE'
+    exclude 'META-INF/LICENSE*'
+    exclude 'META-INF/NOTICE*'
+    exclude 'META-INF/maven/**'
+    exclude 'META-INF/versions/**'
+    exclude '**/*.md'
+    exclude '**/*.MD'
+
     relocate 'org.mineacademy.fo', 'me.zrageyh.relocated.lib'
     relocate 'xyz.xenodevs', 'me.zrageyh.relocated.invui'
-   // destinationDirectory.set(file("C:\\Users\\libut\\Desktop\\1.21.1\\plugins"))
-    //destinationDirectory.set(file("/home/enrico/Desktop/Mineacademy/1.21.1/plugins/"))
-    //  destinationDirectory.set(file("C:\\Users\\libut\\AppData\\Roaming\\.feather\\player-server\\servers\\3692ebda-7ea9-4200-893a-e1c452697b2b\\plugins"))
+    relocate 'com.github.benmanes.caffeine', 'me.zrageyh.relocated.caffeine'
+    relocate 'com.zaxxer.hikari', 'me.zrageyh.relocated.hikari'
+    relocate 'redis.clients.jedis', 'me.zrageyh.relocated.jedis'
+    relocate 'org.mariadb.jdbc', 'me.zrageyh.relocated.mariadb'
 
+    archiveClassifier.set('')
+    archiveVersion.set('')
 }

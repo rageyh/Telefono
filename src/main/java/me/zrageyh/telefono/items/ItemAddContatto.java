@@ -15,6 +15,7 @@ import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.inventory.ItemFlag;
 import org.bukkit.inventory.ItemStack;
 import org.jetbrains.annotations.NotNull;
+import org.mineacademy.fo.Common;
 import org.mineacademy.fo.Messenger;
 import xyz.xenondevs.invui.item.ItemProvider;
 import xyz.xenondevs.invui.item.builder.ItemBuilder;
@@ -50,13 +51,18 @@ public class ItemAddContatto extends SimpleItem {
     public void handleClick(@NotNull final ClickType clickType, @NotNull final Player player, @NotNull final InventoryClickEvent event) {
 
         final Contatto contatto = new Contatto(sim);
-        Optional<List<Contatto>> opt_contatti = Telefono.getCacheContatti().get(sim);
 
+        Telefono.getCacheContatti().get(sim).thenAcceptAsync(opt_contatti -> {
+            Common.runLater(() -> openContactGUI(player, contatto, opt_contatti));
+        });
+    }
+
+    private void openContactGUI(final Player player, final Contatto contatto, final Optional<List<Contatto>> opt_contatti) {
         final AnvilGUI.Builder numberGui = new AnvilGUI.Builder()
                 .title("ɴᴜᴍᴇʀᴏ ᴄᴏɴᴛᴀᴛᴛᴏ")
                 .plugin(Telefono.getInstance())
-                .itemLeft(Telefono.itemInvisible)
-                .itemRight(Telefono.itemInvisible)
+                .itemLeft(Telefono.getServiceManager().getItemManager().getItemInvisible())
+                .itemRight(Telefono.getServiceManager().getItemManager().getItemInvisible())
                 .onClick((slot, state) -> {
 
                     if (slot != AnvilGUI.Slot.OUTPUT) {
@@ -97,8 +103,8 @@ public class ItemAddContatto extends SimpleItem {
         final AnvilGUI.Builder surnameGui = new AnvilGUI.Builder()
                 .title("ᴄᴏɢɴᴏᴍᴇ ᴄᴏɴᴛᴀᴛᴛᴏ")
                 .plugin(Telefono.getInstance())
-                .itemLeft(Telefono.itemInvisible)
-                .itemRight(Telefono.itemInvisible)
+                .itemLeft(Telefono.getServiceManager().getItemManager().getItemInvisible())
+                .itemRight(Telefono.getServiceManager().getItemManager().getItemInvisible())
                 .onClick((slot, state) -> {
 
                     if (slot != AnvilGUI.Slot.OUTPUT) {
@@ -131,8 +137,8 @@ public class ItemAddContatto extends SimpleItem {
         final AnvilGUI.Builder nameGui = new AnvilGUI.Builder()
                 .title("ɴᴏᴍᴇ ᴄᴏɴᴛᴀᴛᴛᴏ")
                 .plugin(Telefono.getInstance())
-                .itemLeft(Telefono.itemInvisible)
-                .itemRight(Telefono.itemInvisible)
+                .itemLeft(Telefono.getServiceManager().getItemManager().getItemInvisible())
+                .itemRight(Telefono.getServiceManager().getItemManager().getItemInvisible())
                 .onClick((slot, state) -> {
 
                     if (slot != AnvilGUI.Slot.OUTPUT) {

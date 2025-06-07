@@ -9,10 +9,12 @@ import org.bukkit.Material;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
+import org.mineacademy.fo.Common;
 
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
 
 public class TelephoneAPI {
 
@@ -51,11 +53,13 @@ public class TelephoneAPI {
     }
 
     public static boolean isTelephone(final ItemStack item) {
-        return item != null && item.getType() != Material.AIR && Utils.hasNBTTag(item, "telephone_number");
+        // Usa ItemManager per validazione sicura
+        return Telefono.getServiceManager().getItemManager().isTelephone(item);
     }
 
     public static boolean isSim(final ItemStack item) {
-        return item != null && item.getType() != Material.AIR && Utils.hasNBTTag(item, "sim_number");
+        // Usa ItemManager per validazione sicura
+        return Telefono.getServiceManager().getItemManager().isSim(item);
     }
 
     public static boolean numberExists(final String number) {
@@ -82,13 +86,38 @@ public class TelephoneAPI {
 
 
     public static Optional<Contatto> getContattoByNumber(final String sim, final String number) {
-        final Optional<List<Contatto>> opt_contatti_target = Telefono.getCacheContatti().get(sim);
-        if (opt_contatti_target.isEmpty()) return Optional.empty();
+        try {
+            // Controlla cache locale (non-blocking)
+            final List<Contatto> cached = Telefono.getCacheContatti().getCache().getIfPresent(sim);
+            if (cached != null && !cached.isEmpty()) {
+                return cached.stream()
+                        .filter(c -> c.getNumber().equalsIgnoreCase(number))
+                        .findFirst();
+            }
 
-        final List<Contatto> contatti = opt_contatti_target.get();
-        return contatti.stream()
-                .filter(c -> c.getNumber().equalsIgnoreCase(number))
-                .findFirst();
+            // Trigger async load per future calls
+            Telefono.getCacheContatti().get(sim);
+
+            // Fallback: crea contatto temporaneo con numero come nome
+            return Optional.of(new Contatto(sim, number, number));
+
+        } catch (final Exception e) {
+            Common.error(e, "Errore recuperando contatto per SIM: " + sim + ", numero: " + number);
+            return Optional.empty();
+        }
+    }
+
+    /* Versione asincrona per nuovo codice */
+    public static CompletableFuture<Optional<Contatto>> getContattoByNumberAsync(final String sim, final String number) {
+        return Telefono.getCacheContatti().get(sim)
+                .thenApply(opt_contatti_target -> {
+                    if (opt_contatti_target.isEmpty()) return Optional.empty();
+
+                    final List<Contatto> contatti = opt_contatti_target.get();
+                    return contatti.stream()
+                            .filter(c -> c.getNumber().equalsIgnoreCase(number))
+                            .findFirst();
+                });
     }
 
 

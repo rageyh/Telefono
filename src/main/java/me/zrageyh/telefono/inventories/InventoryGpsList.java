@@ -28,7 +28,7 @@ public class InventoryGpsList implements InventoryImpl {
     private static List<ItemBuilder> cachedHeads = null;
     private final HeadDatabaseAPI headDatabaseAPI = Telefono.getHeadDatabaseAPI();
 
-    private ItemBuilder getHead(GpsHead objGpsHead) {
+    private ItemBuilder getHead(final GpsHead objGpsHead) {
         return new ItemBuilder(CompMetadata.setMetadata(headDatabaseAPI.getItemHead(objGpsHead.getId()), "telefono_gps", objGpsHead.getLocation()))
                 .setDisplayName(objGpsHead.getName())
                 .setLegacyLore(List.of("§7ᴄʟɪᴄᴄᴀ ᴘᴇʀ ᴀᴠᴠɪᴀʀᴇ ɪʟ ɢᴘs ᴘᴇʀ §e" + objGpsHead.getName()))
@@ -70,12 +70,12 @@ public class InventoryGpsList implements InventoryImpl {
 
     @Override
     public Gui getInventory() {
-        List<Item> items = heads().stream()
+        final List<Item> items = heads().stream()
                 .map(s -> new SimpleItem(s) {
                     @Override
-                    public void handleClick(@NotNull ClickType clickType, @NotNull Player player, @NotNull InventoryClickEvent event) {
-                        NBTItem nbtItem = new NBTItem(event.getCurrentItem());
-                        Location location = Utils.toLocation(nbtItem.getString("telefono_gps"));
+                    public void handleClick(@NotNull final ClickType clickType, @NotNull final Player player, @NotNull final InventoryClickEvent event) {
+                        final NBTItem nbtItem = new NBTItem(event.getCurrentItem());
+                        final Location location = Utils.toLocation(nbtItem.getString("telefono_gps"));
                         startGps(player, location);
                         player.sendMessage("§aGps avviato, segui la bussola per arrivare a destinazione");
                         player.playSound(player.getLocation(), Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 1, 1);
@@ -97,11 +97,11 @@ public class InventoryGpsList implements InventoryImpl {
     }
 
     @Override
-    public void open(Player player) {
+    public void open(final Player player) {
         Utils.openGui(getInventory(), player, "ʟɪsᴛᴀ ᴅᴇsᴛɪɴᴀᴢɪᴏɴɪ");
     }
 
-    private void startGps(Player player, Location location) {
+    private void startGps(final Player player, final Location location) {
        /* CompassHud.Destination destination = new CompassHud.Destination(location);
         RPGHuds rpgHuds = RPGHuds.inst();
 

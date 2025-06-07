@@ -12,14 +12,15 @@ public class SettingsMySQL {
             return;
         }
         final YamlConfig mysqlConfig = YamlConfig.fromInternalPath("mysql.yml");
-        SimpleDatabase.setConnectUsingHikari(mysqlConfig.getBoolean("Hikari", true));
         final String host = mysqlConfig.getString("Host");
         final String database = mysqlConfig.getString("Database");
         final String user = mysqlConfig.getString("User");
         final String password = mysqlConfig.getString("Password");
         final String line = mysqlConfig.getString("Line");
-        Database.getInstance().connect(line.replace("{host}", host).replace("{database}", database), user, password, "Telefono");
 
+        final String jdbcUrl = line.replace("{host}", host).replace("{database}", database);
+        Database.getInstance().initConnectionPool(jdbcUrl, user, password);
+        Database.getInstance().connect(jdbcUrl, user, password, "Telefono");
 
         mysqlConfig.save();
     }

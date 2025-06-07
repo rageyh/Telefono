@@ -36,12 +36,11 @@ public class ItemCallAmbulance extends SimpleItem {
 
     @Override
     public void handleClick(@NotNull final ClickType clickType, @NotNull final Player player, @NotNull final InventoryClickEvent event) {
-
         new AnvilGUI.Builder()
                 .title("ᴍᴏᴛɪᴠᴏ ᴄʜɪᴀᴍᴀᴛᴀ")
                 .plugin(Telefono.getInstance())
-                .itemLeft(Telefono.itemInvisible)
-                .itemRight(Telefono.itemInvisible)
+                .itemLeft(Telefono.getServiceManager().getItemManager().getItemInvisible())
+                .itemRight(Telefono.getServiceManager().getItemManager().getItemInvisible())
                 .onClick((slot, state) -> {
 
                     if (slot != AnvilGUI.Slot.OUTPUT) {

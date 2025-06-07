@@ -8,4 +8,5 @@ depend: [ HeadDatabase, ItemsAdder]
 softdepend: [ CMI, DiscordSRV ]
 libraries:
   - 'com.zaxxer:HikariCP:6.0.0'
-  - 'org.mariadb.jdbc:mariadb-java-client:3.5.0'
+  - 'com.github.ben-manes.caffeine:caffeine:3.1.8'
+  - 'org.mariadb.jdbc:mariadb-java-client:3.4.1'

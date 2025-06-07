@@ -11,6 +11,7 @@ import me.zrageyh.telefono.manager.Database;
 import me.zrageyh.telefono.model.Contatto;
 import me.zrageyh.telefono.model.history.Cronologia;
 import me.zrageyh.telefono.model.history.HistoryChiamata;
+import me.zrageyh.telefono.utils.ValidationUtils;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
@@ -30,7 +31,7 @@ import xyz.xenondevs.invui.item.builder.ItemBuilder;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 
-import static me.zrageyh.telefono.Telefono.GUI_TITLE_MAIN;
+import static me.zrageyh.telefono.manager.ItemManager.GUI_TITLE_MAIN;
 
 
 public class EventInteractMainMenu implements Listener {
@@ -110,24 +111,31 @@ public class EventInteractMainMenu implements Listener {
     }
 
     private static void handleContacts(final Player player, final String sim) {
-        if (!Telefono.getCacheContatti().getCache().asMap().containsKey(player.getUniqueId().toString())) {
-            Common.runAsync(() -> {
-                List<Contatto> contatti = Database.getInstance().getContattiBySim(sim);
-                if (contatti == null) contatti = new ArrayList<>();
-                Telefono.getCacheContatti().getCache().put(player.getUniqueId().toString(), contatti);
-            });
-        }
-        new InventoryRubrica(player, sim).open(player);
-    }
-
-    private static void handleMessages(final Player player, final String sim) {
-        final Optional<List<Contatto>> contacts = Telefono.getCacheContatti().get(sim);
-        if (contacts.isEmpty()) {
-            Messenger.error(player, "&cNon ci sono messaggi da mostrare");
+        // Validazione input SIM
+        if (!ValidationUtils.isValidSimNumber(sim)) {
+            Messenger.error(player, "&cNumero SIM non valido");
             player.closeInventory();
             return;
         }
-        new InventoryMessaggi(contacts.get(), sim).open(player);
+
+        Telefono.getCacheContatti().get(sim).thenAcceptAsync(contatti -> {
+            Common.runLater(() -> {
+                new InventoryRubrica(player, sim).open(player);
+            });
+        });
+    }
+
+    private static void handleMessages(final Player player, final String sim) {
+        Telefono.getCacheContatti().get(sim).thenAccept(contacts -> {
+            Common.runLater(() -> {
+                if (contacts.isEmpty()) {
+                    Messenger.error(player, "&cNon ci sono messaggi da mostrare");
+                    player.closeInventory();
+                    return;
+                }
+                new InventoryMessaggi(contacts.get(), sim).open(player);
+            });
+        });
     }
 
     private static void handleDiscord(final Player player, final String sim) {

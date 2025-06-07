@@ -2,7 +2,9 @@ package me.zrageyh.telefono.cache;
 
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
+import lombok.Getter;
 import me.zrageyh.telefono.manager.Database;
+import me.zrageyh.telefono.manager.ServiceManager;
 import me.zrageyh.telefono.model.history.HistoryChiamata;
 
 import java.util.ArrayList;
@@ -13,18 +15,53 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
-public class CacheHistoryChiamate {
-
+@Getter
+public class CacheHistoryChiamate implements CacheInterface<HistoryChiamata> {
 
     private final Cache<String, List<HistoryChiamata>> cache;
-    private final ExecutorService executorService;
+    private final ExecutorService executor;
 
-
-    public CacheHistoryChiamate() {
+    public CacheHistoryChiamate(final ExecutorService sharedExecutor) {
         cache = Caffeine.newBuilder()
-                .expireAfterWrite(20, TimeUnit.MINUTES)
+                .expireAfterWrite(8, TimeUnit.MINUTES)
+                .expireAfterAccess(3, TimeUnit.MINUTES)
+                .maximumSize(300)
+                .recordStats()
                 .build();
-        this.executorService = Executors.newCachedThreadPool();
+        executor = sharedExecutor;
+    }
+
+    @Override
+    public void update(final String sim, final int id, final HistoryChiamata data) {
+        // Implementazione specifica per cronologia
+    }
+
+    @Override
+    public void remove(final String sim, final int id) {
+        cache.invalidate(sim);
+    }
+
+    @Override
+    public void loadDataToCache() {
+        // Caricamento lazy per cronologia
+    }
+
+    public CompletableFuture<Optional<List<HistoryChiamata>>> get(final String sim) {
+        final List<HistoryChiamata> cached = cache.getIfPresent(sim);
+        if (cached != null) {
+            return CompletableFuture.completedFuture(Optional.of(cached));
+        }
+
+        return Database.getInstance().getHistoryChiamateBySim(sim)
+                .thenApply(chiamate -> {
+                    cache.put(sim, chiamate);
+                    return Optional.of(chiamate);
+                });
+    }
+
+    public void shutdown() {
+        ServiceManager.shudown(executor);
+        cache.invalidateAll();
     }
 
     public void put(final String sim, final HistoryChiamata data) {
@@ -40,30 +77,8 @@ public class CacheHistoryChiamate {
         cache.put(sim, objectContattoList);
     }
 
-    public CompletableFuture<Optional<List<HistoryChiamata>>> get(final String sim) {
-        final List<HistoryChiamata> cachedChiamate = cache.getIfPresent(sim);
-        if (cachedChiamate != null) {
-            return CompletableFuture.completedFuture(Optional.of(cachedChiamate));
-        }
-        return CompletableFuture.supplyAsync(() -> {
-            List<HistoryChiamata> chiamate = Database.getInstance().getHistoryChiamateBySim(sim);
-            if (chiamate == null || chiamate.isEmpty()) {
-                return Optional.empty();
-            }
-            for (final HistoryChiamata chiamata : chiamate) {
-                cache.getIfPresent(sim).add(chiamata);
-            }
-            return Optional.of(chiamate);
-        }, executorService);
-    }
-
     public void update(final HistoryChiamata data) {
         cache.getIfPresent(data.getSim()).removeIf((c) -> c.getId() == data.getId());
         cache.getIfPresent(data.getSim()).add(data);
     }
-
-    public void remove(final String sim, final int id) {
-        cache.getIfPresent(sim).removeIf((c) -> c.getId() == id);
-    }
-
 }
