@@ -257,6 +257,7 @@ public final class Database {
         return results;
     }
 
+    
     /**
      * Helper method per query INSERT/UPDATE/DELETE
      */
