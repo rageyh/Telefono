@@ -19,7 +19,7 @@ import java.util.concurrent.CompletableFuture;
 public class TelephoneAPI {
 
 
-    public static final Telefono instance = ((Telefono) Telefono.getInstance());
+    public static final Telefono instance = Telefono.getInstance();
 
     public static ItemStack setTelephoneNumber(final ItemStack item, final String number) {
 

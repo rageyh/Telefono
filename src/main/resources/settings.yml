@@ -3,40 +3,70 @@ Command_Aliases: [ telefono ]
 
 Prefix: "&8[&9GreenMobile&8] &8>>"
 
-# Configurazione del plugin Telefono
-# Redis per rate limiting distribuito (opzionale)
-redis:
-  enabled: false
-  host: "localhost"
-  port: 6379
-  password: ""
-  timeout: 2000
-
-# Limiti rate limiting
-rateLimit:
-  call:
-    perMinute: 5
-  message:
-    perMinute: 10
-  contact:
-    perHour: 20
-  global:
-    perSecond: 100
 
 # Cache settings
 cache:
-  expireAfterWrite: 10 # minuti
-  expireAfterAccess: 3  # minuti
-  maximumSize: 500
-  
+  redis:
+    enabled: true
+    host: "localhost"
+    port: 6379
+    password: ""
+    timeout: 2000
+    maxConnections: 20
+    maxIdleConnections: 9
+  abbonamento:
+    maxSize: 1000
+    expireAfterWrite: 5
+    expireAfterAccess: 2
+  contatti:
+    maxSize: 800
+    expireAfterWrite: 8
+    expireAfterAccess: 3
+
+
 # Database settings
 database:
   connectionPool:
-    maximum: 12
-    minimum: 4
-    connectionTimeout: 30000
-    idleTimeout: 600000
-    maxLifetime: 1800000
+    maximum: 20
+    minimum: 8
+    connectionTimeout: 20000
+    idleTimeout: 300000
+    maxLifetime: 1200000
+    validationTimeout: 3000
+    initFailTimeout: 10000
   retries:
     max: 3
     delayMs: 1000
+
+# Performance settings
+performance:
+  monitoring:
+    enabled: true
+    intervalSeconds: 300
+    warnTpsBelow: 18.0
+    warnMemoryAbove: 85.0
+    warnCacheHitBelow: 90.0
+  
+  threadPool:
+    coreSize: 2
+    maxSize: 4
+
+# Security settings
+security:
+  validation:
+    strictMode: true
+    blockSqlInjection: true
+  
+  rateLimiting:
+    enabled: true
+    sendMessage: 2000
+    makeCall: 3000
+    openContacts: 1000
+    saveContact: 5000
+    deleteContact: 3000
+    openHistory: 2000
+    openTelephone: 500
+    databaseOperation: 1000
+    
+  logging:
+    securityEvents: true

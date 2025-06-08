@@ -1,6 +1,5 @@
 package me.zrageyh.telefono;
 
-
 import lombok.Getter;
 import me.arcaniax.hdb.api.HeadDatabaseAPI;
 import me.zrageyh.telefono.cache.*;
@@ -21,107 +20,191 @@ import java.util.Arrays;
 @Getter
 public final class Telefono extends SimplePlugin {
 
+    private ServiceManager serviceManager;
+    private boolean eventsRegistered = false;
+    @Getter
+    private static Telefono instance;
+
+    @Deprecated
+    public static ServiceManager getServiceManager() {
+        return instance != null ? instance.serviceManager : null;
+    }
     
-    @Getter
-    private static ServiceManager serviceManager;
+    @Deprecated
+    public static CacheAbbonamento getCacheAbbonamento() {
+        return instance != null ? instance.serviceManager.getCacheAbbonamento() : null;
+    }
     
-    // Backward compatibility getters
-    @Getter
-    private static CacheAbbonamento cacheAbbonamento;
-    @Getter
-    private static CacheContatti cacheContatti;
-    @Getter
-    private static CacheNumeri cacheNumeri;
-    @Getter
-    private static HeadDatabaseAPI headDatabaseAPI;
-    @Getter
-    private static CacheChiamata cacheChiamata;
-    @Getter
-    private static CacheHistoryChiamate cacheHistoryChiamate;
-    @Getter
-    private static CacheHistoryMessaggi cacheHistoryMessaggi;
-    // telephoneService rimosso - logica migrata in listeners
-    // rateLimitService rimosso - non utilizzato
+    @Deprecated  
+    public static CacheContatti getCacheContatti() {
+        return instance != null ? instance.serviceManager.getCacheContatti() : null;
+    }
+    
+    @Deprecated
+    public static CacheNumeri getCacheNumeri() {
+        return instance != null ? instance.serviceManager.getCacheNumeri() : null;
+    }
+    
+    @Deprecated
+    public static CacheChiamata getCacheChiamata() {
+        return instance != null ? instance.serviceManager.getCacheChiamata() : null;
+    }
+    
+    @Deprecated
+    public static CacheHistoryChiamate getCacheHistoryChiamate() {
+        return instance != null ? instance.serviceManager.getCacheHistoryChiamate() : null;
+    }
+    
+    @Deprecated
+    public static CacheHistoryMessaggi getCacheHistoryMessaggi() {
+        return instance != null ? instance.serviceManager.getCacheHistoryMessaggi() : null;
+    }
+    
+    @Deprecated
+    public static HeadDatabaseAPI getHeadDatabaseAPI() {
+        return instance != null ? instance.serviceManager.getHeadDatabaseAPI() : null;
+    }
 
     @Override
     protected void onReloadablesStart() {
-        Bukkit.getOnlinePlayers().forEach(EventInteractMainMenu::restoreInventory);
-        
         if (serviceManager != null) {
+            Bukkit.getOnlinePlayers().forEach(EventInteractMainMenu::forceRestoreInventory);
             serviceManager.shutdown();
         }
         
+        if (eventsRegistered) {
+            unregisterEvents();
+        }
+        
         initServiceManager();
+        
         Valid.checkBoolean(Common.doesPluginExist("ItemsAdder"), "ItemsAdder non trovato, controlla che sia inserito come plugin.");
         Valid.checkBoolean(Common.doesPluginExist("HeadDatabase"), "HeadDatabase non trovato, controlla che sia inserito come plugin.");
     }
 
     @Override
     protected void onPluginPreReload() {
-        Bukkit.getOnlinePlayers().forEach(EventInteractMainMenu::restoreInventory);
-        
         if (serviceManager != null) {
+            Bukkit.getOnlinePlayers().forEach(EventInteractMainMenu::forceRestoreInventory);
             serviceManager.shutdown();
         }
     }
 
     @Override
     protected void onPluginStart() {
-        Common.log("&8&m-----------------------------------------------------");
-        Common.log("&9&lTelefono v" + getDescription().getVersion() + " &7by &9zRageyh_");
-        Common.log("&7Avvio in corso...");
-        Common.log("&8&m-----------------------------------------------------");
-
-        // Initialize services
+        instance = this;
+        
+        printStartupHeader();
+        initServiceManager();
+        
         serviceManager.initialize().thenRun(() -> {
-            Common.log("&8&m-----------------------------------------------------");
-            Common.log("&a&l✓ Plugin avviato con successo!");
-            Common.log("&8&m-----------------------------------------------------");
+            printStartupSuccess();
         }).exceptionally(throwable -> {
-            Common.log("&8&m-----------------------------------------------------");
-            Common.error(throwable, "&c&l✗ Errore durante l'avvio del plugin");
-            Common.log("&8&m-----------------------------------------------------");
+            printStartupError(throwable);
             return null;
         });
     }
 
-    /* Inizializza ServiceManager e imposta cache statiche per backward compatibility */
     private void initServiceManager() {
         serviceManager = new ServiceManager();
 
-        registerEvents(new EventInteractMainMenu(), new EventOpenTelephone(), new EventUseSim(), new PlayerCleanupListener(), new CallMonitoringListener(serviceManager), new CacheInvalidationListener());
-        serviceManager.initialize().thenRun(() -> {
-            cacheAbbonamento = serviceManager.getCacheAbbonamento();
-            cacheContatti = serviceManager.getCacheContatti();
-            cacheNumeri = serviceManager.getCacheNumeri();
-            cacheChiamata = serviceManager.getCacheChiamata();
-            cacheHistoryChiamate = serviceManager.getCacheHistoryChiamate();
-            cacheHistoryMessaggi = serviceManager.getCacheHistoryMessaggi();
-            headDatabaseAPI = serviceManager.getHeadDatabaseAPI();
-            
-            Common.log("ServiceManager inizializzato correttamente");
-        }).exceptionally(throwable -> {
-            Common.error(throwable, "Errore durante inizializzazione ServiceManager");
-            return null;
-        });
+        if (!eventsRegistered) {
+            registerEvents(
+                new EventInteractMainMenu(), 
+                new EventOpenTelephone(), 
+                new EventUseSim(), 
+                new PlayerCleanupListener(), 
+                new CallMonitoringListener(serviceManager), 
+                new CacheInvalidationListener()
+            );
+            eventsRegistered = true;
+        }
     }
 
     @Override
     protected void onPluginStop() {
-        Common.log("Iniziando shutdown del plugin Telefono...");
+        printShutdownHeader();
         
-        // Ripristina inventari giocatori
-        Bukkit.getOnlinePlayers().forEach(EventInteractMainMenu::restoreInventory);
+        Bukkit.getOnlinePlayers().forEach(EventInteractMainMenu::forceRestoreInventory);
         
-        // Shutdown ServiceManager (gestisce tutto il cleanup)
         if (serviceManager != null) {
             serviceManager.shutdown();
         }
         
-        Common.log("Shutdown del plugin Telefono completato");
+        instance = null;
+        printShutdownComplete();
     }
+    
     private void registerEvents(Listener... listeners) {
         Arrays.stream(listeners).forEach(listener -> Bukkit.getPluginManager().registerEvents(listener, this));
     }
-
+    
+    private void unregisterEvents() {
+        try {
+            org.bukkit.event.HandlerList.unregisterAll((org.bukkit.plugin.Plugin) this);
+            eventsRegistered = false;
+        } catch (Exception e) {
+            Common.error(e, "Errore durante de-registrazione eventi");
+        }
+    }
+    
+    private void printStartupHeader() {
+        Common.log(" ");
+        Common.log("&8┌─────────────────────────────────────────────────────────────┐");
+        Common.log("&8│                                                             │");
+        Common.log("&8│      &9&l⚡ TELEFONO SYSTEM &8│ &7Version &f" + getDescription().getVersion() + "                 &8│");
+        Common.log("&8│      &7Advanced Telephone Plugin for Minecraft             &8│");
+        Common.log("&8│                                                             │");
+        Common.log("&8│      &7Status: &e⏳ Initializing...                         &8│");
+        Common.log("&8│                                                             │");
+        Common.log("&8└─────────────────────────────────────────────────────────────┘");
+        Common.log(" ");
+    }
+    
+    private void printStartupSuccess() {
+        Common.log(" ");
+        Common.log("&8┌─────────────────────────────────────────────────────────────┐");
+        Common.log("&8│                                                             │");
+        Common.log("&8│      &a&l✓ TELEFONO SYSTEM READY &8│ &7Performance Mode      &8│");
+        Common.log("&8│      &7Multi-level Caching: &a&lENABLED                     &8│");
+        Common.log("&8│      &7Security Validation: &a&lACTIVE                      &8│");
+        Common.log("&8│      &7Database Pool: &a&lOPTIMIZED                         &8│");
+        Common.log("&8│                                                             │");
+        Common.log("&8│      &7Status: &a&l🚀 ONLINE &8│ &7Ready for players        &8│");
+        Common.log("&8│                                                             │");
+        Common.log("&8└─────────────────────────────────────────────────────────────┘");
+        Common.log(" ");
+    }
+    
+    private void printStartupError(Throwable throwable) {
+        Common.log(" ");
+        Common.log("&8┌─────────────────────────────────────────────────────────────┐");
+        Common.log("&8│                                                             │");
+        Common.log("&8│      &c&l✗ TELEFONO SYSTEM FAILED &8│ &7Startup Error       &8│");
+        Common.log("&8│      &7System could not initialize properly                 &8│");
+        Common.log("&8│                                                             │");
+        Common.log("&8│      &7Status: &c&l⚠ ERROR &8│ &7Check logs below          &8│");
+        Common.log("&8│                                                             │");
+        Common.log("&8└─────────────────────────────────────────────────────────────┘");
+        Common.log(" ");
+        Common.error(throwable, "Dettagli errore inizializzazione");
+    }
+    
+    private void printShutdownHeader() {
+        Common.log(" ");
+        Common.log("&8┌─────────────────────────────────────────────────────────────┐");
+        Common.log("&8│      &e&l⏸ TELEFONO SYSTEM SHUTDOWN &8│ &7Graceful Stop     &8│");
+        Common.log("&8│      &7Saving data and cleaning resources...               &8│");
+        Common.log("&8└─────────────────────────────────────────────────────────────┘");
+        Common.log(" ");
+    }
+    
+    private void printShutdownComplete() {
+        Common.log(" ");
+        Common.log("&8┌─────────────────────────────────────────────────────────────┐");
+        Common.log("&8│      &7&l💤 TELEFONO SYSTEM OFFLINE &8│ &7Clean Shutdown    &8│");
+        Common.log("&8│      &7All resources cleaned successfully                   &8│");
+        Common.log("&8└─────────────────────────────────────────────────────────────┘");
+        Common.log(" ");
+    }
 }

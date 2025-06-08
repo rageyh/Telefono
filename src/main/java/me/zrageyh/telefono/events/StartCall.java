@@ -30,9 +30,6 @@ public class StartCall extends SimpleConversation {
     private final Abbonamento abbonamento;
     private final Call call;
 
-    // Thread safety e task management
-    private BukkitTask billingTask;
-    private BukkitTask monitoringTask;
     private final AtomicBoolean callEnded = new AtomicBoolean(false);
     private final ReentrantLock lock = new ReentrantLock();
 
@@ -49,70 +46,14 @@ public class StartCall extends SimpleConversation {
     }
 
     private void start() {
-        // Solo task per billing - il monitoring è gestito da CallMonitoringListener
-        billingTask = new BukkitRunnable() {
-            @Override
-            public void run() {
-                if (callEnded.get()) {
-                    cancel();
-                    return;
-                }
-
-                if (!Telefono.getCacheChiamata().containsNumber(contattoWhoCall.getSim())) {
-                    endCallSafely();
-                    cancel();
-                    return;
-                }
-
-                if (contattoCalled.getPlayer().equals(player)) {
-                    endCallSafely();
-                    cancel();
-                    return;
-                }
-
-                // Thread-safe update dell'abbonamento tramite cache
-                updateAbbonamentoSafely();
-            }
-        }.runTaskTimerAsynchronously(Telefono.getInstance(), 0, 20L * 60);
-
-        // Il monitoring delle disconnessioni e drop telefono è gestito da CallMonitoringListener
-        // Rimuovo il polling task per ridurre overhead CPU
+        // PERFORMANCE FIX: Usa CallBillingManager centralizzato invece di task individuali
+        Telefono.getServiceManager().getCallBillingManager().registerCallForBilling(
+            contattoWhoCall.getSim(),
+            call,
+            this::endCallSafely
+        );
     }
 
-    /* Thread-safe update dell'abbonamento */
-    private void updateAbbonamentoSafely() {
-        lock.lock();
-        try {
-            if (callEnded.get()) return;
-
-            Telefono.getCacheAbbonamento().get(abbonamento.getSim())
-                .thenAccept(optAbb -> {
-                    if (optAbb.isPresent() && !callEnded.get()) {
-                        final Abbonamento current = optAbb.get();
-                        if (current.hasCreditoToCall()) {
-                            current.removeMinute();
-                            Telefono.getCacheAbbonamento().update(current);
-
-                            // Salva in modo asincrono
-                            Database.getInstance().updateSubscription(current)
-                                .exceptionally(throwable -> {
-                                    Common.error(throwable, "Errore aggiornamento abbonamento durante chiamata");
-                                    return null;
-                                });
-                        } else {
-                            // Termina chiamata se credito finito
-                            Common.runLater(() -> endCallSafely());
-                        }
-                    }
-                })
-                .exceptionally(throwable -> {
-                    Common.error(throwable, "Errore recupero abbonamento durante chiamata");
-                    return null;
-                });
-        } finally {
-            lock.unlock();
-        }
-    }
 
     /* Thread-safe end call con cleanup completo */
     private void endCallSafely() {
@@ -122,7 +63,6 @@ public class StartCall extends SimpleConversation {
 
         lock.lock();
         try {
-            // Cleanup dei task
             cleanup();
 
             // Salva cronologia in modo asincrono
@@ -136,10 +76,7 @@ public class StartCall extends SimpleConversation {
                     return null;
                 });
 
-            // Aggiorna abbonamento finale
             Telefono.getCacheAbbonamento().update(abbonamento);
-
-            // Rimuovi dalla cache chiamate attive
             Telefono.getCacheChiamata().removeData(contattoCalled.getSim());
 
             // Notifica giocatori
@@ -156,10 +93,7 @@ public class StartCall extends SimpleConversation {
 
     /* Cleanup dei task per evitare memory leak */
     public void cleanup() {
-        if (billingTask != null && !billingTask.isCancelled()) {
-            billingTask.cancel();
-        }
-        // monitoringTask rimosso - gestito da CallMonitoringListener
+        Telefono.getServiceManager().getCallBillingManager().unregisterCallBilling(contattoWhoCall.getSim());
     }
 
     @Override

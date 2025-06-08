@@ -14,10 +14,14 @@
 # NOTA: Se ci sono troppe connessioni aperte disattivare
 # Prova ad aggiungere &allowPublicKeyRetrieval=true (o false) alla fine della chiave "Line", e cambia autoReconnect
 # da true a false. Prova varie combinazioni o eventualmente imposta questa chiave su false come soluzione di ultima istanza.
-Hikari: true
+# 
+# CRITICAL FIX: Disabilitato per evitare doppia connessione (usiamo Database.java custom)
+Hikari: false
 
 # L'host e la porta a cui connettersi
-Host: 'localhost:3306'
+Host: 'localhost'
+
+Port: 3306
 
 # Il nome del database
 Database: 'greenfieldtelefono'

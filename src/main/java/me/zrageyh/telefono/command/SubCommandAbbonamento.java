@@ -39,8 +39,8 @@ public final class SubCommandAbbonamento extends SimpleSubCommand {
     protected void onCommand() {
         checkConsole();
 
-        String number = args[0];
-        String subscription = args[1];
+        final String number = args[0];
+        final String subscription = args[1];
 
         Map<TipoAbbonamento, Abbonamento> mappaAbbonamenti = new HashMap<>() {
             {

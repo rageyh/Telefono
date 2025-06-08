@@ -11,13 +11,13 @@ import xyz.xenondevs.invui.item.builder.ItemBuilder;
 
 import java.util.List;
 
-/* 
+/*
  * Gestisce tutti gli ItemStack del plugin
  * Sostituisce gli static per dependency injection
  */
 @Getter
 public class ItemManager {
-    
+
     public static final String GUI_TITLE_MAIN = "§0.";
 
     private final ItemStack itemTelephone;
@@ -36,7 +36,7 @@ public class ItemManager {
     private final ItemStack itemDarkChat;
     private final ItemStack itemTwitch;
     private final ItemStack itemReport;
-    
+
     public ItemManager() {
         this.itemTelephone = getTelephoneItem();
         this.border = createBorder();
@@ -55,14 +55,14 @@ public class ItemManager {
         this.itemTwitch = buildItem("§f§lᴛᴡɪᴛᴄʜ", "§7§oIɴ ᴀʀʀɪᴠᴏ ᴄᴏɴ ɪʟ ᴘʀᴏssɪᴍᴏ ᴀɢɢɪᴏʀɴᴀᴍᴇɴᴛᴏ", "§7§oᴅᴇʟ sɪsᴛᴇᴍᴀ...");
         this.itemReport = buildItem("§f§lʀᴇᴘᴏʀᴛ", "§7ᴄʟɪᴄᴄᴀ ᴘᴇʀ ᴠɪsᴜᴀʟɪᴢᴢᴀʀᴇ ɪ §fᴛɪᴄᴋᴇᴛ", "§7ᴏ ᴄʜɪᴇᴅᴇʀᴇ §fᴀɪᴜᴛᴏ");
     }
-    
+
     /* Crea border con ItemsAdder */
     private ItemBuilder createBorder() {
         return new ItemBuilder(CompMaterial.BLACK_STAINED_GLASS_PANE.toItem())
             .setDisplayName(" ")
             .setItemFlags(List.of(ItemFlag.HIDE_ATTRIBUTES, ItemFlag.HIDE_ENCHANTS));
     }
-    
+
     /* Crea item invisibile per AnvilGUI */
     private ItemStack createInvisibleItem() {
         return new ItemBuilder(CustomStack.getInstance("mcicons:icon_time_day").getItemStack())
@@ -75,7 +75,7 @@ public class ItemManager {
     }
 
     private ItemStack getTelephoneItem() {
-        ItemStack telephone =ItemCreator.of(CustomStack.getInstance("iageneric:telephone").getItemStack())
+        final ItemStack telephone =ItemCreator.of(CustomStack.getInstance("iageneric:telephone").getItemStack())
                 .name("&fTelefono")
                 .lore("  ", "&7Numero: &fnessuno")
                 .make();
@@ -84,9 +84,9 @@ public class ItemManager {
         nbtItem.setString("telephone_number", "nessuno");
         return nbtItem.getItem();
     }
-    
+
     /* Factory method per creare item standard */
-    private ItemStack buildItem(String name, String... lore) {
+    private ItemStack buildItem(final String name, final String... lore) {
         return new ItemBuilder(CustomStack.getInstance("mcicons:icon_time_day").getItemStack())
             .setDisplayName(name)
             .setLegacyLore(List.of(lore))
@@ -95,44 +95,44 @@ public class ItemManager {
             .clearModifiers()
             .get();
     }
-    
+
     /* Validazione sicura ItemStack - controlla NBT + material invece di solo display name */
-    public boolean isSpecificItem(ItemStack item, ItemStack reference) {
+    public boolean isSpecificItem(final ItemStack item, final ItemStack reference) {
         if (item == null || reference == null) return false;
-        
+
         // Controllo material type
         if (!item.getType().equals(reference.getType())) return false;
-        
+
         // Controllo display name se presente
         if (item.hasItemMeta() && reference.hasItemMeta()) {
-            String itemName = item.getItemMeta().getDisplayName();
-            String refName = reference.getItemMeta().getDisplayName();
+                    final String itemName = item.getItemMeta().getDisplayName();
+        final String refName = reference.getItemMeta().getDisplayName();
             if (!itemName.equals(refName)) return false;
         }
-        
+
         // Per CustomStack, verifica l'ID univoco
-        CustomStack itemCustom = CustomStack.byItemStack(item);
-        CustomStack refCustom = CustomStack.byItemStack(reference);
-        
+        final CustomStack itemCustom = CustomStack.byItemStack(item);
+        final CustomStack refCustom = CustomStack.byItemStack(reference);
+
         if (itemCustom != null && refCustom != null) {
             return itemCustom.getId().equals(refCustom.getId());
         }
-        
+
         return true;
     }
-    
+
     /* Controllo ottimizzato per telefono - usa CustomStack ID per performance */
-    public boolean isTelephone(ItemStack item) {
+    public boolean isTelephone(final ItemStack item) {
         if (item == null) return false;
-        CustomStack customStack = CustomStack.byItemStack(item);
+        final CustomStack customStack = CustomStack.byItemStack(item);
         return customStack != null && "telephone".equals(customStack.getId());
     }
-    
+
     /* Controllo ottimizzato per SIM - usa CustomStack ID */
-    public boolean isSim(ItemStack item) {
+    public boolean isSim(final ItemStack item) {
         if (item == null) return false;
-        
-        CustomStack customStack = CustomStack.byItemStack(item);
+
+        final CustomStack customStack = CustomStack.byItemStack(item);
         return customStack != null && "sim".equals(customStack.getId());
     }
 } 

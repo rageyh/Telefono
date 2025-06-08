@@ -61,7 +61,6 @@ public class CacheHistoryMessaggi implements CacheInterface<HistoryMessaggio> {
     }
 
     public void shutdown() {
-        ServiceManager.shudown(executor);
         cache.invalidateAll();
     }
 

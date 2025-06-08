@@ -18,7 +18,7 @@ import org.bukkit.inventory.ItemFlag;
 import org.bukkit.inventory.ItemStack;
 import org.mineacademy.fo.Common;
 import org.mineacademy.fo.Messenger;
-import org.mineacademy.fo.collection.SerializedMap;
+
 import xyz.xenondevs.invui.item.builder.ItemBuilder;
 
 import java.util.*;
@@ -27,8 +27,7 @@ import java.util.concurrent.TimeUnit;
 import static me.zrageyh.telefono.Telefono.*;
 
 public class EventOpenTelephone implements Listener {
-    public static final SerializedMap serializedMap = new SerializedMap();
-    private static final int COOLDOWN_SECONDS = 2;
+    private static final int COOLDOWN_SECONDS = 3;
     private static final int MAX_USES_PER_MINUTE = 20;
     private static final Set<Integer> VALID_TELEPHONE_SLOTS = Set.of(0, 8);
 
@@ -43,13 +42,31 @@ public class EventOpenTelephone implements Listener {
             .maximumSize(1000)
             .build();
 
-    @EventHandler(priority = EventPriority.LOWEST)
+    // CRITICAL FIX: Debouncing per prevenire doppi click nello stesso tick
+    private final Cache<UUID, Long> lastInteractionCache = Caffeine.newBuilder()
+            .expireAfterWrite(2, TimeUnit.SECONDS)
+            .maximumSize(1000)
+            .build();
+
+    @EventHandler(priority = EventPriority.LOW, ignoreCancelled = false)
     public void onTelephoneInteract(final PlayerInteractEvent event) {
+        // Gestione telefono interaction
+
         if (!isValidInteraction(event)) return;
 
         final Player p = event.getPlayer();
-        final ItemStack item = event.getItem();
+        final UUID uuid = p.getUniqueId();
+        final long currentTime = System.currentTimeMillis();
 
+        // CRITICAL FIX: Debouncing - ignora click multipli in 200ms
+        final Long lastInteraction = lastInteractionCache.getIfPresent(uuid);
+        if (lastInteraction != null && currentTime - lastInteraction < 200) {
+            event.setCancelled(true);
+            return; // Ignora silenziosamente doppi click
+        }
+        lastInteractionCache.put(uuid, currentTime);
+
+        final ItemStack item = event.getItem();
         event.setCancelled(true);
 
         if (!TelephoneAPI.hasNumber(item)) {
@@ -59,20 +76,18 @@ public class EventOpenTelephone implements Listener {
 
         final String sim = Utils.getNBTTag(item, "telephone_number");
 
-        // Validazione numero SIM
         if (!isValidSimNumber(sim)) {
             Messenger.error(p, "&cNumero SIM non valido!");
             return;
         }
-
-        // Handle chiamata in corso
         if (getCacheChiamata().containsNumber(sim)) {
             handleOngoingCall(p, sim);
             return;
         }
-
-        // Validazione slot telefono
         if (!isValidTelephoneSlot(p)) {
+            return;
+        }
+        if (!canUsePhone(p)) {
             return;
         }
 
@@ -81,11 +96,17 @@ public class EventOpenTelephone implements Listener {
     }
 
     private boolean isValidInteraction(final PlayerInteractEvent event) {
-        return event.getAction() != Action.LEFT_CLICK_AIR
-                && event.getAction() != Action.LEFT_CLICK_BLOCK
-                && event.getItem() != null
-                && event.getHand() == EquipmentSlot.HAND
-                && TelephoneAPI.isTelephone(event.getItem());
+        // CRITICAL FIX: Filtro più specifico per evitare eventi duplicati
+        final boolean isRightClick = event.getAction() == Action.RIGHT_CLICK_AIR || event.getAction() == Action.RIGHT_CLICK_BLOCK;
+        final boolean hasItem = event.getItem() != null;
+        final boolean isMainHand = event.getHand() == EquipmentSlot.HAND;
+        final boolean isTelephone = hasItem && TelephoneAPI.isTelephone(event.getItem());
+        final boolean isNotSim = hasItem && !TelephoneAPI.isSim(event.getItem());
+        final boolean isSingleItem = hasItem && event.getItem().getAmount() == 1;
+
+        // Validazione completa interazione telefono
+
+        return isRightClick && hasItem && isMainHand && isTelephone && isNotSim && isSingleItem;
     }
 
     /* Validazione numero SIM */
@@ -129,8 +150,6 @@ public class EventOpenTelephone implements Listener {
         // Controllo cooldown base
         final Long lastUse = cooldownCache.getIfPresent(uuid);
         if (lastUse != null && currentTime - lastUse < TimeUnit.SECONDS.toMillis(COOLDOWN_SECONDS)) {
-            final long remainingTime = TimeUnit.SECONDS.toMillis(COOLDOWN_SECONDS) - (currentTime - lastUse);
-            Messenger.error(p, "&cAspetta " + (remainingTime / 1000) + " secondi prima di aprire di nuovo il telefono!");
             return false;
         }
 
@@ -140,7 +159,6 @@ public class EventOpenTelephone implements Listener {
 
         if (newUsage > MAX_USES_PER_MINUTE) {
             Messenger.error(p, "&cTroppi tentativi! Riprova tra un minuto.");
-            // Exponential backoff - aumenta il cooldown per spam
             cooldownCache.put(uuid, currentTime + TimeUnit.SECONDS.toMillis(COOLDOWN_SECONDS * 3));
             return false;
         }
@@ -151,7 +169,8 @@ public class EventOpenTelephone implements Listener {
     }
 
     private void openTelephoneInterface(final Player p, final String sim) {
-        serializedMap.put(p.getUniqueId().toString(), p.getInventory().getContents());
+        // CRITICAL FIX: Backup inventario con delay intelligente
+        getServiceManager().getPlayerDataManager().backupInventory(p, p.getInventory().getContents());
 
         Common.runLater(() -> {
             setupTelephoneInventory(p);
@@ -219,5 +238,6 @@ public class EventOpenTelephone implements Listener {
     public void cleanupPlayer(final UUID uuid) {
         cooldownCache.invalidate(uuid);
         usageCountCache.invalidate(uuid);
+        lastInteractionCache.invalidate(uuid);
     }
 }

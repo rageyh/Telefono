@@ -9,98 +9,119 @@ import me.zrageyh.telefono.model.Abbonamento;
 import me.zrageyh.telefono.model.Contatto;
 import me.zrageyh.telefono.model.history.HistoryChiamata;
 import me.zrageyh.telefono.model.history.HistoryMessaggio;
+import me.zrageyh.telefono.utils.ValidationUtils;
 import org.mineacademy.fo.Common;
-import org.mineacademy.fo.MathUtil;
-import org.mineacademy.fo.Valid;
-import org.mineacademy.fo.database.SimpleDatabase;
+import org.mineacademy.fo.settings.YamlConfig;
 
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Statement;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
-public final class Database extends SimpleDatabase {
+/**
+ * CRITICAL FIX: Database completamente HikariCP-based
+ * - Rimossa dipendenza da Foundation SimpleDatabase
+ * - Tutte le query usano esclusivamente HikariCP
+ * - Gestione connessioni ottimizzata e thread-safe
+ */
+public final class Database {
     @Getter
     private static final Database instance = new Database();
-    @Getter
-    private int pingTicks;
 
     private HikariDataSource dataSource;
-    private final ExecutorService executor = Executors.newFixedThreadPool(8);
-    private static final int MAX_RETRIES = 3;
-    private static final int RETRY_DELAY_MS = 1000;
+    private final ExecutorService executor = Executors.newFixedThreadPool(4, r -> {
+        Thread t = new Thread(r, "Database-Worker");
+        t.setDaemon(true);
+        return t;
+    });
 
     private Database() {
-        pingTicks = 0;
+        // Singleton
     }
 
-    /* Inizializza HikariCP connection pool */
-    public void initConnectionPool(final String jdbcUrl, final String username, final String password) {
+    /**
+     * CRITICAL FIX: Connessione database con HikariCP puro
+     */
+    public void connect(final String host, final int port, final String database,
+                       final String username, final String password) {
         try {
-            // Explicitly load the MariaDB driver
-            Class.forName("org.mariadb.jdbc.Driver");
-        } catch (ClassNotFoundException e) {
-            Common.error(e, "Failed to load MariaDB driver");
-            throw new RuntimeException("Failed to load MariaDB driver", e);
+            final String jdbcUrl = "jdbc:mariadb://" + host + ":" + port + "/" + database;
+            initConnectionPool(jdbcUrl, username, password);
+            Common.log("        &7├─ Database: &a&lCONNECTED &7to MariaDB");
+        } catch (final Exception e) {
+            Common.error(e, "Errore connessione database");
+            throw new RuntimeException("Impossibile connettersi al database", e);
         }
-
-        final HikariConfig config = new HikariConfig();
-        config.setJdbcUrl(jdbcUrl);
-        config.setUsername(username);
-        config.setPassword(password);
-        config.setMaximumPoolSize(12);
-        config.setMinimumIdle(4);
-        config.setConnectionTimeout(30000);
-        config.setIdleTimeout(600000);
-        config.setMaxLifetime(1800000);
-        config.setLeakDetectionThreshold(60000);
-        config.addDataSourceProperty("cachePrepStmts", "true");
-        config.addDataSourceProperty("prepStmtCacheSize", "250");
-        config.addDataSourceProperty("prepStmtCacheSqlLimit", "2048");
-
-        dataSource = new HikariDataSource(config);
     }
 
-    @Override
-    public Connection getConnection() {
-        int retryCount = 0;
-        while (retryCount < MAX_RETRIES) {
-            try {
-                if (dataSource != null && !dataSource.isClosed()) {
-                    final Connection conn = dataSource.getConnection();
-                    if (conn != null && conn.isValid(5)) {
-                        return conn;
-                    }
-                }
-                return super.getConnection();
+    private void initConnectionPool(final String jdbcUrl, final String username, final String password) {
+        try {
+            final YamlConfig settings = YamlConfig.fromInternalPath("settings.yml");
 
-            } catch (final SQLException e) {
-                retryCount++;
-                Common.error(e, "Errore connessione database - tentativo " + retryCount + "/" + MAX_RETRIES);
+            final HikariConfig config = new HikariConfig();
+            config.setJdbcUrl(jdbcUrl);
+            config.setUsername(username);
+            config.setPassword(password);
+            config.setDriverClassName("org.mariadb.jdbc.Driver");
 
-                if (retryCount >= MAX_RETRIES) {
-                    Common.error(e, "Connessione database fallita definitivamente dopo " + MAX_RETRIES + " tentativi");
-                    return null;
-                }
+            config.setMaximumPoolSize(settings.getInteger("database.connectionPool.maximum", 20));
+            config.setMinimumIdle(settings.getInteger("database.connectionPool.minimum", 8));
+            config.setConnectionTimeout(settings.getLong("database.connectionPool.connectionTimeout", 20000L));
+            config.setIdleTimeout(settings.getLong("database.connectionPool.idleTimeout", 300000L));
+            config.setMaxLifetime(settings.getLong("database.connectionPool.maxLifetime", 1200000L));
+            config.setLeakDetectionThreshold(30000);
+            config.setValidationTimeout(settings.getLong("database.connectionPool.validationTimeout", 3000L));
+            config.setInitializationFailTimeout(settings.getLong("database.connectionPool.initFailTimeout", 10000L));
 
-                try {
-                    Thread.sleep(RETRY_DELAY_MS * retryCount); // Exponential backoff
-                } catch (final InterruptedException ie) {
-                    Thread.currentThread().interrupt();
-                    Common.error(ie, "Interruzione durante retry connessione database");
-                    return null;
-                }
-            }
+            config.addDataSourceProperty("cachePrepStmts", "true");
+            config.addDataSourceProperty("prepStmtCacheSize", "500");
+            config.addDataSourceProperty("prepStmtCacheSqlLimit", "4096");
+            config.addDataSourceProperty("useServerPrepStmts", "true");
+            config.addDataSourceProperty("rewriteBatchedStatements", "true");
+            config.addDataSourceProperty("cacheResultSetMetadata", "true");
+            config.addDataSourceProperty("cacheServerConfiguration", "true");
+            config.addDataSourceProperty("elideSetAutoCommits", "true");
+            config.addDataSourceProperty("maintainTimeStats", "false");
+            config.addDataSourceProperty("useLocalSessionState", "true");
+            config.addDataSourceProperty("useLocalTransactionState", "true");
+            config.addDataSourceProperty("autoReconnect", "true");
+            config.addDataSourceProperty("failOverReadOnly", "false");
+            config.addDataSourceProperty("maxReconnects", "3");
+
+            dataSource = new HikariDataSource(config);
+
+            Common.log("        &7├─ Connection Pool: &a" + config.getMaximumPoolSize() + " &7max connections");
+        } catch (final Exception e) {
+            Common.error(e, "Errore configurazione HikariCP");
+            throw new RuntimeException("Impossibile inizializzare connection pool", e);
         }
-        return null;
     }
 
-    /* Verifica connessione con fallback graceful */
+    /**
+     * CRITICAL FIX: Solo HikariCP, nessun fallback Foundation
+     */
+    public Connection getConnection() throws SQLException {
+        if (dataSource == null || dataSource.isClosed()) {
+            throw new SQLException("Database connection pool non disponibile");
+        }
+
+        final Connection conn = dataSource.getConnection();
+        if (conn == null || !conn.isValid(5)) {
+            throw new SQLException("Connessione database non valida");
+        }
+
+        return conn;
+    }
+
+    /**
+     * Health check HikariCP
+     */
     public boolean isConnectionHealthy() {
         try (final Connection conn = getConnection()) {
             return conn != null && conn.isValid(5);
@@ -110,104 +131,186 @@ public final class Database extends SimpleDatabase {
         }
     }
 
-    @Override
-    protected void onConnected() {
-        final long now = System.currentTimeMillis();
-
-        createTable(TableCreator.of("abbonamento")
-                .addNotNull("sim", "VARCHAR(8)")
-                .addNotNull("abbonamento", "text")
-                .addNotNull("messaggi_rimanenti", "INT")
-                .addNotNull("chiamate_rimanenti", "INT")
-                .setPrimaryColumn("sim"));
-
-        createTable(TableCreator.of("sim")
-                .addNotNull("numero_sim", "VARCHAR(20)")
-                .setPrimaryColumn("numero_sim"));
-
-        createTable(TableCreator.of("contatto")
-                .addNotNull("id", "INT AUTO_INCREMENT")
-                .addNotNull("sim", "VARCHAR(8)")
-                .addNotNull("numero", "VARCHAR(8)")
-                .addNotNull("nome", "VARCHAR(15)")
-                .addNotNull("cognome", "VARCHAR(15)")
-                .setPrimaryColumn("id"));
-
-        createTable(TableCreator.of("cronologia_chiamate")
-                .addNotNull("id", "INT AUTO_INCREMENT")
-                .addNotNull("sim", "VARCHAR(8)")
-                .addNotNull("numero_chiamato", "VARCHAR(8)")
-                .addNotNull("data_chiamata", "VARCHAR(20)")
-                .addNotNull("is_persa", "BOOLEAN")
-                .setPrimaryColumn("id"));
-
-        createTable(TableCreator.of("cronologia_messaggi")
-                .addNotNull("id", "INT AUTO_INCREMENT")
-                .addNotNull("sim", "VARCHAR(8)")
-                .addNotNull("numero_mittente", "VARCHAR(15)")
-                .addNotNull("messaggio", "LONGTEXT")
-                .addNotNull("data_messaggio", "VARCHAR(20)")
-                .addNotNull("persa", "BOOLEAN")
-                .setPrimaryColumn("id"));
-
-        updatePing(now);
-    }
-
-    private void updatePing(final long oldTime) {
-        pingTicks = (int) MathUtil.ceiling((double) (System.currentTimeMillis() - oldTime) / 1000.0 * 50.0 * 1.3);
-        if (System.currentTimeMillis() - oldTime > 250L) {
-            Common.warning("La connessione al database è lenta (" + MathUtil.formatTwoDigits((double) (System.currentTimeMillis() - oldTime) / 1000.0) + " secondi). Cerca di ridurre il carico e usare il database in localhost.");
-            return;
+    /**
+     * CRITICAL FIX: Creazione tabelle con HikariCP puro - SINCRONO nel main thread
+     */
+    public void initializeTables() {
+        if (org.bukkit.Bukkit.isPrimaryThread()) {
+            performTableInitialization();
+        } else {
+            org.mineacademy.fo.Common.runLater(() -> performTableInitialization());
         }
-        Common.log("Database MySQL creato in: " + pingTicks + " secondi");
     }
 
-    /* Operazione async con retry logic */
-    private <T> CompletableFuture<T> executeWithRetry(final String operation, final CompletableFuture<T> future) {
-        return future.handle((result, throwable) -> {
-            if (throwable != null) {
-                return retryOperation(operation, future, 1);
-            }
-            return CompletableFuture.completedFuture(result);
-        }).thenCompose(f -> f);
-    }
-
-    private <T> CompletableFuture<T> retryOperation(final String operation, final CompletableFuture<T> original, final int attempt) {
-        if (attempt > MAX_RETRIES) {
-            Common.log("Operazione fallita dopo " + MAX_RETRIES + " tentativi: " + operation);
-            return CompletableFuture.failedFuture(new RuntimeException("Max retries exceeded"));
+    private void performTableInitialization() {
+        try (final Connection conn = getConnection()) {
+            createTablesIfNotExists(conn);
+            Common.log("        &7├─ Database Schema: &a&lINITIALIZED");
+        } catch (final SQLException e) {
+            Common.error(e, "Errore inizializzazione tabelle");
+            throw new RuntimeException(e);
         }
+    }
 
-        Common.log("Retry tentativo " + attempt + " per: " + operation);
+    private void createTablesIfNotExists(final Connection conn) throws SQLException {
+        final String[] createTableQueries = {
+            """
+            CREATE TABLE IF NOT EXISTS abbonamento (
+                sim VARCHAR(8) NOT NULL PRIMARY KEY,
+                abbonamento TEXT NOT NULL,
+                messaggi_rimanenti INT NOT NULL,
+                chiamate_rimanenti INT NOT NULL
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+            """,
 
-        return original.handle((result, throwable) -> {
-            if (throwable != null) {
-                return retryOperation(operation, original, attempt + 1);
+            """
+            CREATE TABLE IF NOT EXISTS sim (
+                numero_sim VARCHAR(20) NOT NULL PRIMARY KEY
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+            """,
+
+            """
+            CREATE TABLE IF NOT EXISTS contatto (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                sim VARCHAR(8) NOT NULL,
+                numero VARCHAR(8) NOT NULL,
+                nome VARCHAR(15) NOT NULL,
+                cognome VARCHAR(15) NOT NULL,
+                INDEX idx_sim (sim),
+                INDEX idx_numero (numero)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+            """,
+
+            """
+            CREATE TABLE IF NOT EXISTS cronologia_chiamate (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                sim VARCHAR(8) NOT NULL,
+                numero_chiamato VARCHAR(8) NOT NULL,
+                data_chiamata VARCHAR(20) NOT NULL,
+                is_persa BOOLEAN NOT NULL,
+                INDEX idx_sim (sim),
+                INDEX idx_numero (numero_chiamato),
+                INDEX idx_data (data_chiamata)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+            """,
+
+            """
+            CREATE TABLE IF NOT EXISTS cronologia_messaggi (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                sim VARCHAR(8) NOT NULL,
+                numero_mittente VARCHAR(15) NOT NULL,
+                messaggio LONGTEXT NOT NULL,
+                data_messaggio VARCHAR(20) NOT NULL,
+                persa BOOLEAN NOT NULL,
+                INDEX idx_sim (sim),
+                INDEX idx_mittente (numero_mittente),
+                INDEX idx_data (data_messaggio)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+            """
+        };
+
+        try (final Statement stmt = conn.createStatement()) {
+            for (final String query : createTableQueries) {
+                stmt.execute(query);
             }
-            return CompletableFuture.completedFuture(result);
-        }).thenCompose(f -> f);
+        }
     }
 
     /**
-     * ABBONAMENTO - Operazioni completamente asincrone
+     * Helper method per eseguire query SELECT con HikariCP
      */
+    private <T> List<T> executeSelectQuery(final String sql, final Object[] params,
+                                          final ResultSetMapper<T> mapper) throws SQLException {
+        final List<T> results = new ArrayList<>();
 
+        try (final Connection conn = getConnection();
+             final PreparedStatement stmt = conn.prepareStatement(sql)) {
+
+            if (params != null) {
+                for (int i = 0; i < params.length; i++) {
+                    final Object param = params[i];
+                    if (param instanceof String) {
+                        stmt.setString(i + 1, (String) param);
+                    } else if (param instanceof Integer) {
+                        stmt.setInt(i + 1, (Integer) param);
+                    } else if (param instanceof Long) {
+                        stmt.setLong(i + 1, (Long) param);
+                    } else if (param instanceof Boolean) {
+                        stmt.setBoolean(i + 1, (Boolean) param);
+                    } else if (param instanceof Double) {
+                        stmt.setDouble(i + 1, (Double) param);
+                    } else if (param == null) {
+                        stmt.setNull(i + 1, java.sql.Types.VARCHAR);
+                    } else {
+                        stmt.setString(i + 1, param.toString());
+                    }
+                }
+            }
+
+            try (final ResultSet rs = stmt.executeQuery()) {
+                while (rs.next()) {
+                    results.add(mapper.map(rs));
+                }
+            }
+        }
+
+        return results;
+    }
+
+    /**
+     * Helper method per query INSERT/UPDATE/DELETE
+     */
+    private int executeUpdateQuery(final String sql, final Object... params) throws SQLException {
+        try (final Connection conn = getConnection();
+             final PreparedStatement stmt = conn.prepareStatement(sql)) {
+
+            for (int i = 0; i < params.length; i++) {
+                final Object param = params[i];
+                if (param instanceof String) {
+                    stmt.setString(i + 1, (String) param);
+                } else if (param instanceof Integer) {
+                    stmt.setInt(i + 1, (Integer) param);
+                } else if (param instanceof Long) {
+                    stmt.setLong(i + 1, (Long) param);
+                } else if (param instanceof Boolean) {
+                    stmt.setBoolean(i + 1, (Boolean) param);
+                } else if (param instanceof Double) {
+                    stmt.setDouble(i + 1, (Double) param);
+                } else if (param == null) {
+                    stmt.setNull(i + 1, java.sql.Types.VARCHAR);
+                } else {
+                    stmt.setString(i + 1, param.toString());
+                }
+            }
+
+            return stmt.executeUpdate();
+        }
+    }
+
+    /**
+     * ABBONAMENTO - Operazioni completamente HikariCP
+     */
     public CompletableFuture<Void> saveSubscription(final Abbonamento subscription) {
         return CompletableFuture.runAsync(() -> {
-            final String sql = "INSERT INTO abbonamento (sim, abbonamento, messaggi_rimanenti, chiamate_rimanenti) VALUES (?, ?, ?, ?) " +
-                    "ON DUPLICATE KEY UPDATE abbonamento = ?, messaggi_rimanenti = ?, chiamate_rimanenti = ?";
+            if (!ValidationUtils.isValidSimNumber(subscription.getSim())) {
+                throw new IllegalArgumentException("Invalid SIM number: " + subscription.getSim());
+            }
 
-            try (final Connection conn = getConnection();
-                 final PreparedStatement statement = conn.prepareStatement(sql)) {
-                statement.setString(1, subscription.getSim());
-                statement.setString(2, subscription.getAbbonamento());
-                statement.setInt(3, subscription.getMessages());
-                statement.setInt(4, subscription.getCalls());
-                statement.setString(5, subscription.getAbbonamento());
-                statement.setInt(6, subscription.getMessages());
-                statement.setInt(7, subscription.getCalls());
-                statement.executeUpdate();
+            final String sql = """
+                INSERT INTO abbonamento (sim, abbonamento, messaggi_rimanenti, chiamate_rimanenti) 
+                VALUES (?, ?, ?, ?) 
+                ON DUPLICATE KEY UPDATE 
+                    abbonamento = VALUES(abbonamento),
+                    messaggi_rimanenti = VALUES(messaggi_rimanenti),
+                    chiamate_rimanenti = VALUES(chiamate_rimanenti)
+                """;
 
+            try {
+                executeUpdateQuery(sql,
+                    ValidationUtils.sanitizeForDatabase(subscription.getSim()),
+                    ValidationUtils.sanitizeForDatabase(subscription.getAbbonamento()),
+                    subscription.getMessages(),
+                    subscription.getCalls());
             } catch (final SQLException e) {
                 Common.error(e, "Errore salvando abbonamento: " + subscription.getSim());
                 throw new RuntimeException(e);
@@ -217,54 +320,63 @@ public final class Database extends SimpleDatabase {
 
     public CompletableFuture<Optional<Abbonamento>> getSubscription(final String sim) {
         return CompletableFuture.supplyAsync(() -> {
-            final String sql = "SELECT * FROM abbonamento WHERE sim = ?";
-            try (final Connection conn = getConnection();
-                 final PreparedStatement statement = conn.prepareStatement(sql)) {
-                statement.setString(1, sim);
-                final ResultSet rs = statement.executeQuery();
-                if (rs.next()) {
-                    return Optional.of(new Abbonamento(sim, rs.getString(2), rs.getInt(3), rs.getInt(4)));
-                }
+            if (!ValidationUtils.isValidSimNumber(sim)) {
+                return Optional.empty();
+            }
+
+            final String sql = "SELECT sim, abbonamento, messaggi_rimanenti, chiamate_rimanenti FROM abbonamento WHERE sim = ?";
+
+            try {
+                final List<Abbonamento> results = executeSelectQuery(sql, new Object[]{sim}, rs ->
+                    new Abbonamento(rs.getString(1), rs.getString(2), rs.getInt(3), rs.getInt(4)));
+
+                return results.isEmpty() ? Optional.empty() : Optional.of(results.get(0));
             } catch (final SQLException e) {
                 Common.error(e, "Errore recuperando abbonamento: " + sim);
+                return Optional.empty();
             }
-            return Optional.empty();
         }, executor);
     }
 
     public CompletableFuture<Map<String, Abbonamento>> getAllAbbonamenti() {
         return CompletableFuture.supplyAsync(() -> {
-            final Map<String, Abbonamento> newEntries = new HashMap<>();
-            selectAll("abbonamento", resultSet -> {
-                final String sim = resultSet.getString("sim");
-                final String tipoAbbonamento = resultSet.getString("abbonamento");
-                final int messaggiRimanenti = resultSet.getInt("messaggi_rimanenti");
-                final int chiamateRimanenti = resultSet.getInt("chiamate_rimanenti");
-                final Abbonamento subscription = new Abbonamento(sim, tipoAbbonamento, messaggiRimanenti, chiamateRimanenti);
-                newEntries.put(sim, subscription);
-            });
-            return newEntries;
+            final String sql = "SELECT sim, abbonamento, messaggi_rimanenti, chiamate_rimanenti FROM abbonamento";
+            final Map<String, Abbonamento> results = new HashMap<>();
+
+            try {
+                final List<Abbonamento> abbonamenti = executeSelectQuery(sql, null, rs ->
+                    new Abbonamento(rs.getString(1), rs.getString(2), rs.getInt(3), rs.getInt(4)));
+
+                abbonamenti.forEach(abb -> results.put(abb.getSim(), abb));
+            } catch (final SQLException e) {
+                Common.error(e, "Errore recuperando tutti gli abbonamenti");
+            }
+
+            return results;
         }, executor);
     }
 
     public CompletableFuture<Void> saveAllSubscriptions(final List<Abbonamento> abbonamenti) {
         return CompletableFuture.runAsync(() -> {
-            final String sql = "INSERT INTO abbonamento (sim, abbonamento, messaggi_rimanenti, chiamate_rimanenti) VALUES (?, ?, ?, ?) " +
-                    "ON DUPLICATE KEY UPDATE messaggi_rimanenti = ?, chiamate_rimanenti = ?";
+            final String sql = """
+                INSERT INTO abbonamento (sim, abbonamento, messaggi_rimanenti, chiamate_rimanenti) 
+                VALUES (?, ?, ?, ?) 
+                ON DUPLICATE KEY UPDATE 
+                    messaggi_rimanenti = VALUES(messaggi_rimanenti),
+                    chiamate_rimanenti = VALUES(chiamate_rimanenti)
+                """;
 
             try (final Connection conn = getConnection();
-                 final PreparedStatement statement = conn.prepareStatement(sql)) {
+                 final PreparedStatement stmt = conn.prepareStatement(sql)) {
 
                 for (final Abbonamento abbonamento : abbonamenti) {
-                    statement.setString(1, abbonamento.getSim());
-                    statement.setString(2, abbonamento.getAbbonamento());
-                    statement.setInt(3, abbonamento.getMessages());
-                    statement.setInt(4, abbonamento.getCalls());
-                    statement.setInt(5, abbonamento.getMessages());
-                    statement.setInt(6, abbonamento.getCalls());
-                    statement.addBatch();
+                    stmt.setString(1, abbonamento.getSim());
+                    stmt.setString(2, abbonamento.getAbbonamento());
+                    stmt.setInt(3, abbonamento.getMessages());
+                    stmt.setInt(4, abbonamento.getCalls());
+                    stmt.addBatch();
                 }
-                statement.executeBatch();
+                stmt.executeBatch();
             } catch (final SQLException e) {
                 Common.error(e, "Errore batch save abbonamenti");
                 throw new RuntimeException(e);
@@ -275,12 +387,8 @@ public final class Database extends SimpleDatabase {
     public CompletableFuture<Void> updateSubscription(final Abbonamento subscription) {
         return CompletableFuture.runAsync(() -> {
             final String sql = "UPDATE abbonamento SET messaggi_rimanenti = ?, chiamate_rimanenti = ? WHERE sim = ?";
-            try (final Connection conn = getConnection();
-                 final PreparedStatement statement = conn.prepareStatement(sql)) {
-                statement.setInt(1, subscription.getMessages());
-                statement.setInt(2, subscription.getCalls());
-                statement.setString(3, subscription.getSim());
-                statement.executeUpdate();
+            try {
+                executeUpdateQuery(sql, subscription.getMessages(), subscription.getCalls(), subscription.getSim());
             } catch (final SQLException e) {
                 Common.error(e, "Errore aggiornando abbonamento: " + subscription.getSim());
                 throw new RuntimeException(e);
@@ -289,22 +397,21 @@ public final class Database extends SimpleDatabase {
     }
 
     /**
-     * SIM - Operazioni asincrone
+     * SIM - Operazioni HikariCP
      */
-
     public CompletableFuture<Void> saveSim(final String number) {
         return CompletableFuture.runAsync(() -> {
             final String sql = "INSERT INTO sim (numero_sim) VALUES (?)";
 
-            try (final Connection conn = getConnection();
-                 final PreparedStatement statement = conn.prepareStatement(sql)) {
-                statement.setString(1, number);
-                final int affectedRows = statement.executeUpdate();
-
-                if (affectedRows == 0) {
+            try {
+                final int affected = executeUpdateQuery(sql, number);
+                if (affected == 0) {
                     throw new SimNumberAlreadyExistsException("Il numero SIM " + number + " esiste già.");
                 }
             } catch (final SQLException e) {
+                if (e.getErrorCode() == 1062) { // Duplicate entry
+                    throw new SimNumberAlreadyExistsException("Il numero SIM " + number + " esiste già.");
+                }
                 throw new SimSaveException("Errore durante il salvataggio del numero SIM", e);
             }
         }, executor);
@@ -312,29 +419,25 @@ public final class Database extends SimpleDatabase {
 
     public CompletableFuture<List<String>> getAllSim() {
         return CompletableFuture.supplyAsync(() -> {
-            final List<String> newEntries = new ArrayList<>();
-            selectAll("sim", resultSet -> {
-                final String sim = resultSet.getString(1);
-                newEntries.add(sim);
-            });
-            return newEntries;
+            final String sql = "SELECT numero_sim FROM sim";
+            try {
+                return executeSelectQuery(sql, null, rs -> rs.getString(1));
+            } catch (final SQLException e) {
+                Common.error(e, "Errore recuperando tutte le SIM");
+                return new ArrayList<>();
+            }
         }, executor);
     }
 
     /**
-     * Contatti - Operazioni asincrone con batch
+     * Contatti - Operazioni HikariCP
      */
-
     public CompletableFuture<Void> saveContatto(final Contatto contatto) {
         return CompletableFuture.runAsync(() -> {
             final String sql = "INSERT INTO contatto (sim, numero, nome, cognome) VALUES (?, ?, ?, ?)";
-            try (final Connection conn = getConnection();
-                 final PreparedStatement statement = conn.prepareStatement(sql)) {
-                statement.setString(1, contatto.getSim());
-                statement.setString(2, contatto.getNumber());
-                statement.setString(3, contatto.getName());
-                statement.setString(4, contatto.getSurname());
-                statement.executeUpdate();
+            try {
+                executeUpdateQuery(sql, contatto.getSim(), contatto.getNumber(),
+                                 contatto.getName(), contatto.getSurname());
             } catch (final SQLException e) {
                 Common.error(e, "Errore salvando contatto: " + contatto.getId());
                 throw new RuntimeException(e);
@@ -344,51 +447,45 @@ public final class Database extends SimpleDatabase {
 
     public CompletableFuture<Map<String, List<Contatto>>> getAllContatti() {
         return CompletableFuture.supplyAsync(() -> {
-            final Map<String, List<Contatto>> newEntries = new HashMap<>();
-            selectAll("contatto", rs -> {
-                final int id = rs.getInt(1);
-                final String sim = rs.getString(2);
-                final String number = rs.getString(3);
-                final String name = rs.getString(4);
-                final String surname = rs.getString(5);
-                final Contatto contatto = new Contatto(id, sim, number, name, surname);
+            final String sql = "SELECT id, sim, numero, nome, cognome FROM contatto ORDER BY sim, nome";
+            final Map<String, List<Contatto>> results = new HashMap<>();
 
-                final List<Contatto> contatti = newEntries.getOrDefault(sim, new ArrayList<>());
-                contatti.add(contatto);
-                newEntries.put(sim, contatti);
-            });
-            return newEntries;
+            try {
+                final List<Contatto> contatti = executeSelectQuery(sql, null, rs ->
+                    new Contatto(rs.getInt(1), rs.getString(2), rs.getString(3),
+                               rs.getString(4), rs.getString(5)));
+
+                contatti.forEach(contatto -> {
+                    results.computeIfAbsent(contatto.getSim(), k -> new ArrayList<>()).add(contatto);
+                });
+            } catch (final SQLException e) {
+                Common.error(e, "Errore recuperando tutti i contatti");
+            }
+
+            return results;
         }, executor);
     }
 
     public CompletableFuture<List<Contatto>> getContattiBySim(final String sim) {
         return CompletableFuture.supplyAsync(() -> {
-            final String sql = "SELECT * FROM contatto WHERE sim = ?";
-            final List<Contatto> contatti = new ArrayList<>();
-            try (final Connection conn = getConnection();
-                 final PreparedStatement statement = conn.prepareStatement(sql)) {
-                statement.setString(1, sim);
-                final ResultSet resultSet = statement.executeQuery();
-                while (resultSet.next()) {
-                    contatti.add(new Contatto(resultSet.getInt(1), resultSet.getString(2),
-                                            resultSet.getString(3), resultSet.getString(4), resultSet.getString(5)));
-                }
+            final String sql = "SELECT id, sim, numero, nome, cognome FROM contatto WHERE sim = ? ORDER BY nome";
+
+            try {
+                return executeSelectQuery(sql, new Object[]{sim}, rs ->
+                    new Contatto(rs.getInt(1), rs.getString(2), rs.getString(3),
+                               rs.getString(4), rs.getString(5)));
             } catch (final SQLException e) {
                 Common.error(e, "Errore recuperando contatti per sim: " + sim);
+                return new ArrayList<>();
             }
-            return contatti;
         }, executor);
     }
 
     public CompletableFuture<Void> updateContatto(final Contatto contatto) {
         return CompletableFuture.runAsync(() -> {
             final String sql = "UPDATE contatto SET nome = ?, cognome = ? WHERE id = ?";
-            try (final Connection conn = getConnection();
-                 final PreparedStatement statement = conn.prepareStatement(sql)) {
-                statement.setString(1, contatto.getName());
-                statement.setString(2, contatto.getSurname());
-                statement.setInt(3, contatto.getId());
-                statement.executeUpdate();
+            try {
+                executeUpdateQuery(sql, contatto.getName(), contatto.getSurname(), contatto.getId());
             } catch (final SQLException e) {
                 Common.error(e, "Errore aggiornando contatto: " + contatto.getId());
                 throw new RuntimeException(e);
@@ -399,10 +496,8 @@ public final class Database extends SimpleDatabase {
     public CompletableFuture<Void> deleteContatto(final int id) {
         return CompletableFuture.runAsync(() -> {
             final String sql = "DELETE FROM contatto WHERE id = ?";
-            try (final Connection conn = getConnection();
-                 final PreparedStatement statement = conn.prepareStatement(sql)) {
-                statement.setInt(1, id);
-                statement.executeUpdate();
+            try {
+                executeUpdateQuery(sql, id);
             } catch (final SQLException e) {
                 Common.error(e, "Errore eliminando contatto: " + id);
                 throw new RuntimeException(e);
@@ -411,20 +506,14 @@ public final class Database extends SimpleDatabase {
     }
 
     /**
-     * Cronologia Messaggi - Operazioni asincrone
+     * Cronologia Messaggi - HikariCP puro
      */
-
     public CompletableFuture<Void> saveMessaggio(final HistoryMessaggio messaggio) {
         return CompletableFuture.runAsync(() -> {
             final String sql = "INSERT INTO cronologia_messaggi (sim, numero_mittente, messaggio, data_messaggio, persa) VALUES (?, ?, ?, ?, ?)";
-            try (final Connection conn = getConnection();
-                 final PreparedStatement statement = conn.prepareStatement(sql)) {
-                statement.setString(1, messaggio.getSim());
-                statement.setString(2, messaggio.getNumber());
-                statement.setString(3, messaggio.getMessage());
-                statement.setString(4, messaggio.getDate());
-                statement.setBoolean(5, messaggio.isLost());
-                statement.executeUpdate();
+            try {
+                executeUpdateQuery(sql, messaggio.getSim(), messaggio.getNumber(),
+                                 messaggio.getMessage(), messaggio.getDate(), messaggio.isLost());
             } catch (final SQLException e) {
                 Common.error(e, "Errore salvando messaggio: " + messaggio.getId());
                 throw new RuntimeException(e);
@@ -434,42 +523,50 @@ public final class Database extends SimpleDatabase {
 
     public CompletableFuture<Map<String, List<HistoryMessaggio>>> getAllHistoryMessaggi(final String input) {
         return CompletableFuture.supplyAsync(() -> {
-            final Map<String, List<HistoryMessaggio>> newEntries = new HashMap<>();
+            final String sql = """
+                SELECT sim, numero_mittente, messaggio, data_messaggio, persa 
+                FROM cronologia_messaggi 
+                WHERE sim = ? OR numero_mittente = ? 
+                ORDER BY data_messaggio DESC
+                """;
+
+            final Map<String, List<HistoryMessaggio>> results = new HashMap<>();
             final List<HistoryMessaggio> messaggi = new ArrayList<>();
 
-            selectAll("cronologia_messaggi", (rs) -> {
-                final String sim = rs.getString(2);
-                final String number = rs.getString(3);
-                final String message = rs.getString(4);
-                final String date = rs.getString(5);
-                final boolean isLost = rs.getBoolean(6);
+            try {
+                final List<HistoryMessaggio> allMessages = executeSelectQuery(sql, new Object[]{input, input}, rs -> {
+                    final String sim = rs.getString(1);
+                    final String mittente = rs.getString(2);
+                    final String messaggio = rs.getString(3);
+                    final String data = rs.getString(4);
+                    final boolean isLost = rs.getBoolean(5);
 
-                if (input.equals(sim)) {
-                    messaggi.add(new HistoryMessaggio(sim, number, date, message, isLost, false));
-                }
-                if (input.equals(number)) {
-                    messaggi.add(new HistoryMessaggio(number, sim, date, message, isLost, true));
-                }
-            });
-            newEntries.put(input, messaggi);
-            return newEntries;
+                    if (input.equals(sim)) {
+                        return new HistoryMessaggio(sim, mittente, data, messaggio, isLost, false);
+                    } else {
+                        return new HistoryMessaggio(mittente, sim, data, messaggio, isLost, true);
+                    }
+                });
+
+                messaggi.addAll(allMessages);
+            } catch (final SQLException e) {
+                Common.error(e, "Errore recuperando cronologia messaggi per: " + input);
+            }
+
+            results.put(input, messaggi);
+            return results;
         }, executor);
     }
 
     /**
-     * Cronologia Chiamate - Operazioni asincrone
+     * Cronologia Chiamate - HikariCP puro
      */
-
     public CompletableFuture<Void> saveChiamata(final HistoryChiamata chiamata) {
         return CompletableFuture.runAsync(() -> {
             final String sql = "INSERT INTO cronologia_chiamate (sim, numero_chiamato, data_chiamata, is_persa) VALUES (?, ?, ?, ?)";
-            try (final Connection conn = getConnection();
-                 final PreparedStatement statement = conn.prepareStatement(sql)) {
-                statement.setString(1, chiamata.getSim());
-                statement.setString(2, chiamata.getNumber());
-                statement.setString(3, chiamata.getDate());
-                statement.setBoolean(4, chiamata.isLost());
-                statement.executeUpdate();
+            try {
+                executeUpdateQuery(sql, chiamata.getSim(), chiamata.getNumber(),
+                                 chiamata.getDate(), chiamata.isLost());
             } catch (final SQLException e) {
                 Common.error(e, "Errore salvando chiamata: " + chiamata.getId());
                 throw new RuntimeException(e);
@@ -479,94 +576,123 @@ public final class Database extends SimpleDatabase {
 
     public CompletableFuture<Map<String, List<HistoryChiamata>>> getAllHistoryChiamate(final String input) {
         return CompletableFuture.supplyAsync(() -> {
-            final Map<String, List<HistoryChiamata>> newEntries = new HashMap<>();
+            final String sql = """
+                SELECT sim, numero_chiamato, data_chiamata, is_persa 
+                FROM cronologia_chiamate 
+                WHERE sim = ? OR numero_chiamato = ? 
+                ORDER BY data_chiamata DESC
+                """;
+
+            final Map<String, List<HistoryChiamata>> results = new HashMap<>();
             final List<HistoryChiamata> chiamate = new ArrayList<>();
 
-            selectAll("cronologia_chiamate", (rs) -> {
-                final String sim = rs.getString(2);
-                final String number = rs.getString(3);
-                final String date = rs.getString(4);
-                final boolean isLost = rs.getBoolean(5);
+            try {
+                final List<HistoryChiamata> allCalls = executeSelectQuery(sql, new Object[]{input, input}, rs -> {
+                    final String sim = rs.getString(1);
+                    final String numeroChiamato = rs.getString(2);
+                    final String data = rs.getString(3);
+                    final boolean isLost = rs.getBoolean(4);
 
-                if (input.equals(sim)) {
-                    chiamate.add(new HistoryChiamata(sim, number, date, isLost, false));
-                }
-                if (input.equals(number)) {
-                    chiamate.add(new HistoryChiamata(number, sim, date, isLost, true));
-                }
-            });
-            newEntries.put(input, chiamate);
-            return newEntries;
+                    if (input.equals(sim)) {
+                        return new HistoryChiamata(sim, numeroChiamato, data, isLost, false);
+                    } else {
+                        return new HistoryChiamata(numeroChiamato, sim, data, isLost, true);
+                    }
+                });
+
+                chiamate.addAll(allCalls);
+            } catch (final SQLException e) {
+                Common.error(e, "Errore recuperando cronologia chiamate per: " + input);
+            }
+
+            results.put(input, chiamate);
+            return results;
         }, executor);
     }
 
     public CompletableFuture<List<HistoryChiamata>> getHistoryChiamateBySim(final String number) {
         return CompletableFuture.supplyAsync(() -> {
-            final List<HistoryChiamata> chiamate = new ArrayList<>();
-            final String sql = "SELECT * FROM cronologia_chiamate WHERE sim = ? OR numero_chiamato = ?";
+            final String sql = """
+                SELECT sim, numero_chiamato, data_chiamata, is_persa 
+                FROM cronologia_chiamate 
+                WHERE sim = ? OR numero_chiamato = ? 
+                ORDER BY data_chiamata DESC
+                """;
 
-            try (final Connection conn = getConnection();
-                 final PreparedStatement statement = conn.prepareStatement(sql)) {
-                statement.setString(1, number);
-                statement.setString(2, number);
-                final ResultSet rs = statement.executeQuery();
-
-                while (rs.next()) {
-                    final String sim = rs.getString(2);
-                    final String numberTarget = rs.getString(3);
+            try {
+                return executeSelectQuery(sql, new Object[]{number, number}, rs -> {
+                    final String sim = rs.getString(1);
+                    final String numeroChiamato = rs.getString(2);
+                    final String data = rs.getString(3);
+                    final boolean isLost = rs.getBoolean(4);
 
                     if (sim.equalsIgnoreCase(number)) {
-                        chiamate.add(new HistoryChiamata(sim, numberTarget, rs.getString(4), rs.getBoolean(5), false));
+                        return new HistoryChiamata(sim, numeroChiamato, data, isLost, false);
+                    } else {
+                        return new HistoryChiamata(numeroChiamato, sim, data, isLost, true);
                     }
-                    if (numberTarget.equalsIgnoreCase(number)) {
-                        chiamate.add(new HistoryChiamata(numberTarget, sim, rs.getString(4), rs.getBoolean(5), true));
-                    }
-                }
+                });
             } catch (final SQLException e) {
                 Common.error(e, "Errore recuperando cronologia chiamate: " + number);
+                return new ArrayList<>();
             }
-            return chiamate;
         }, executor);
     }
 
     public CompletableFuture<List<HistoryMessaggio>> getHistoryMessaggiBySim(final String number) {
         return CompletableFuture.supplyAsync(() -> {
-            final List<HistoryMessaggio> messaggi = new ArrayList<>();
-            final String sql = "SELECT * FROM cronologia_messaggi WHERE sim = ? OR numero_mittente = ?";
+            final String sql = """
+                SELECT sim, numero_mittente, messaggio, data_messaggio, persa 
+                FROM cronologia_messaggi 
+                WHERE sim = ? OR numero_mittente = ? 
+                ORDER BY data_messaggio DESC
+                """;
 
-            try (final Connection conn = getConnection();
-                 final PreparedStatement statement = conn.prepareStatement(sql)) {
-                statement.setString(1, number);
-                statement.setString(2, number);
-                final ResultSet rs = statement.executeQuery();
-
-                while (rs.next()) {
-                    final String sim = rs.getString(2);
-                    final String numeroMittente = rs.getString(3);
-                    final String date = rs.getString(5);
-                    final String message = rs.getString(4);
-                    final boolean isLost = rs.getBoolean(6);
+            try {
+                return executeSelectQuery(sql, new Object[]{number, number}, rs -> {
+                    final String sim = rs.getString(1);
+                    final String mittente = rs.getString(2);
+                    final String messaggio = rs.getString(3);
+                    final String data = rs.getString(4);
+                    final boolean isLost = rs.getBoolean(5);
 
                     if (sim.equalsIgnoreCase(number)) {
-                        messaggi.add(new HistoryMessaggio(sim, numeroMittente, date, message, isLost, false));
+                        return new HistoryMessaggio(sim, mittente, data, messaggio, isLost, false);
                     } else {
-                        messaggi.add(new HistoryMessaggio(numeroMittente, sim, date, message, isLost, true));
+                        return new HistoryMessaggio(mittente, sim, data, messaggio, isLost, true);
                     }
-                }
+                });
             } catch (final SQLException e) {
                 Common.error(e, "Errore recuperando cronologia messaggi: " + number);
+                return new ArrayList<>();
             }
-            return messaggi;
         }, executor);
     }
 
-    /* Cleanup per shutdown */
+    /**
+     * CRITICAL FIX: Shutdown completo HikariCP - SINCRONO nel main thread
+     */
     public void shutdown() {
+        if (org.bukkit.Bukkit.isPrimaryThread()) {
+            performShutdown();
+        } else {
+            org.mineacademy.fo.Common.runLater(() -> performShutdown());
+        }
+    }
+
+    private void performShutdown() {
         if (executor != null && !executor.isShutdown()) {
             executor.shutdown();
             try {
                 if (!executor.awaitTermination(10, TimeUnit.SECONDS)) {
                     executor.shutdownNow();
+                    if (!executor.awaitTermination(5, TimeUnit.SECONDS)) {
+                        Common.warning("        &7├─ Database Pool: &c&lFORCED SHUTDOWN");
+                    } else {
+                        Common.log("        &7├─ Database Pool: &e&lFORCED CLOSURE");
+                    }
+                } else {
+                    Common.log("        &7├─ Database Pool: &a&lCLEAN SHUTDOWN");
                 }
             } catch (final InterruptedException e) {
                 executor.shutdownNow();
@@ -575,8 +701,21 @@ public final class Database extends SimpleDatabase {
         }
 
         if (dataSource != null && !dataSource.isClosed()) {
-            dataSource.close();
+            try {
+                dataSource.close();
+                Common.log("        &7├─ HikariCP: &a&lDISCONNECTED");
+            } catch (final Exception e) {
+                Common.error(e, "Errore chiusura HikariCP DataSource");
+            }
         }
+    }
+
+    /**
+     * Functional interface per mapping ResultSet
+     */
+    @FunctionalInterface
+    private interface ResultSetMapper<T> {
+        T map(ResultSet rs) throws SQLException;
     }
 }
 

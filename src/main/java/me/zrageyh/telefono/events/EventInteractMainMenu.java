@@ -12,6 +12,10 @@ import me.zrageyh.telefono.model.Contatto;
 import me.zrageyh.telefono.model.history.Cronologia;
 import me.zrageyh.telefono.model.history.HistoryChiamata;
 import me.zrageyh.telefono.utils.ValidationUtils;
+import me.zrageyh.telefono.security.SecurityManager;
+import me.zrageyh.telefono.security.RateLimiter;
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
@@ -30,52 +34,74 @@ import xyz.xenondevs.invui.item.builder.ItemBuilder;
 
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 
 import static me.zrageyh.telefono.manager.ItemManager.GUI_TITLE_MAIN;
 
 
+/**
+ * ARCHITECTURE FIX: Convertito da static abuse a instance-based pattern
+ * - Eliminati 12 metodi statici
+ * - Dependency injection ready
+ * - Foundation singleton pattern compliant
+ */
 public class EventInteractMainMenu implements Listener {
 
-
-    private static final Map<Integer, MenuAction> MENU_ACTIONS_UP = new HashMap<>();
-    private static final Map<Integer, MenuAction> MENU_ACTIONS_DOWN = new HashMap<>();
-
-    static {
+    // ARCHITECTURE FIX: Instance-based invece di static
+    private final Map<Integer, MenuAction> menuActionsUp = new HashMap<>();
+    private final Map<Integer, MenuAction> menuActionsDown = new HashMap<>();
+    private final Telefono plugin;
+    private final SecurityManager securityManager;
+    
+    // CRITICAL FIX: Click debouncing per prevenire duplicazioni
+    private final Cache<UUID, Long> clickDebounceCache = Caffeine.newBuilder()
+            .expireAfterWrite(500, TimeUnit.MILLISECONDS)
+            .maximumSize(1000)
+            .build();
+    
+    public EventInteractMainMenu() {
+        this.plugin = Telefono.getInstance();
+        this.securityManager = SecurityManager.getInstance();
         initializeMenuActions();
     }
 
-    private static void initializeMenuActions() {
+    // ARCHITECTURE FIX: Instance methods invece di static
+    private void initializeMenuActions() {
         // Top inventory actions
-        MENU_ACTIONS_UP.put(21, (player, sim) -> new InventoryEmergency().open(player));
-        MENU_ACTIONS_UP.put(22, (player, sim) -> Common.dispatchCommand(Bukkit.getConsoleSender(), "fatture " + player.getName()));
-        MENU_ACTIONS_UP.put(23, (player, sim) -> {
+        menuActionsUp.put(21, (player, sim) -> new InventoryEmergency().open(player));
+        menuActionsUp.put(22, (player, sim) -> Common.dispatchCommand(Bukkit.getConsoleSender(), "fatture " + player.getName()));
+        menuActionsUp.put(23, (player, sim) -> {
             player.closeInventory();
             Bukkit.dispatchCommand(player, "ticket");
         });
 
-        // Bottom inventory actions
-        MENU_ACTIONS_DOWN.put(3, EventInteractMainMenu::handleCallHistory);
-        MENU_ACTIONS_DOWN.put(4, EventInteractMainMenu::handleContacts);
-        MENU_ACTIONS_DOWN.put(5, EventInteractMainMenu::handleMessages);
-        MENU_ACTIONS_DOWN.put(12, EventInteractMainMenu::handleDiscord);
-        MENU_ACTIONS_DOWN.put(14, EventInteractMainMenu::handleStore);
-        MENU_ACTIONS_DOWN.put(21, EventInteractMainMenu::handleSimRemoval);
-        MENU_ACTIONS_DOWN.put(22, (player, sim) -> new InventoryGpsList().open(player));
+        // Bottom inventory actions - ARCHITECTURE FIX: Usa instance methods
+        menuActionsDown.put(3, this::handleCallHistory);
+        menuActionsDown.put(4, this::handleContacts);
+        menuActionsDown.put(5, this::handleMessages);
+        menuActionsDown.put(12, this::handleDiscord);
+        menuActionsDown.put(14, this::handleStore);
+        menuActionsDown.put(21, this::handleSimRemoval);
+        menuActionsDown.put(22, (player, sim) -> new InventoryGpsList().open(player));
     }
 
+    // ARCHITECTURE FIX: Static method for backward compatibility (for now)
     public static void restoreInventory(final Player player) {
-        final String uuid = player.getUniqueId().toString();
-        if (!EventOpenTelephone.serializedMap.containsKey(uuid)) {
+        // CRITICAL FIX: Usa il delay intelligente nel PlayerDataManager
+        Telefono.getServiceManager().getPlayerDataManager().restoreInventory(player);
+    }
+    
+    // CRITICAL FIX: Metodo per restore forzato (quit/close definitivi)
+    public static void forceRestoreInventory(final Player player) {
+        Telefono.getServiceManager().getPlayerDataManager().forceRestoreInventory(player);
+    }
+
+    // ARCHITECTURE FIX: Instance method invece di static
+    private void handleCallHistory(final Player player, final String sim) {
+        if (!securityManager.validateAndAttemptAction(player, RateLimiter.ActionType.OPEN_HISTORY, sim, "sim")) {
             return;
         }
-        final Object contents = EventOpenTelephone.serializedMap.getObject(uuid);
-        if (contents != null) {
-            player.getInventory().setContents((ItemStack[]) contents);
-            EventOpenTelephone.serializedMap.remove(uuid);
-        }
-    }
-
-    private static void handleCallHistory(final Player player, final String sim) {
+        
         final CompletableFuture<Optional<List<HistoryChiamata>>> historyFuture = Telefono.getCacheHistoryChiamate().get(sim);
 
         historyFuture.thenAccept(opt_chiamate -> {
@@ -96,7 +122,7 @@ public class EventInteractMainMenu implements Listener {
         });
     }
 
-    private static ChatPaginator createCallHistoryPaginator(final List<SimpleComponent> calls) {
+    private ChatPaginator createCallHistoryPaginator(final List<SimpleComponent> calls) {
         final ChatPaginator paginator = new ChatPaginator(7);
         paginator.setFoundationHeader("§x§2§9§F§B§0§8§lᴄ§x§3§1§F§B§1§1§lʀ§x§3§8§F§B§1§A§lᴏ§x§4§0§F§B§2§4§lɴ§x§4§7§F§B§2§D§lᴏ§x§4§F§F§C§3§6§lʟ§x§5§6§F§C§3§F§lᴏ§x§5§E§F§C§4§8§lɢ§x§6§5§F§C§5§1§lɪ§x§6§D§F§C§5§B§lᴀ §x§7§C§F§C§6§D§lᴄ§x§8§4§F§C§7§6§lʜ§x§8§B§F§C§7§F§lɪ§x§9§3§F§D§8§8§lᴀ§x§9§A§F§D§9§2§lᴍ§x§A§2§F§D§9§B§lᴀ§x§A§9§F§D§A§4§lᴛ§x§B§1§F§D§A§D§lᴇ§6");
         paginator.setHeader(
@@ -110,22 +136,38 @@ public class EventInteractMainMenu implements Listener {
         return paginator;
     }
 
-    private static void handleContacts(final Player player, final String sim) {
-        // Validazione input SIM
-        if (!ValidationUtils.isValidSimNumber(sim)) {
-            Messenger.error(player, "&cNumero SIM non valido");
+    private void handleContacts(final Player player, final String sim) {
+        if (!securityManager.validateAndAttemptAction(player, RateLimiter.ActionType.OPEN_CONTACTS, sim, "sim")) {
             player.closeInventory();
             return;
         }
 
         Telefono.getCacheContatti().get(sim).thenAcceptAsync(contatti -> {
+            if (contatti.isEmpty()) {
+                Common.runLater(() -> {
+                    Messenger.error(player, "&cNessun contatto disponibile");
+                    player.closeInventory();
+                });
+                return;
+            }
+            
+            Common.runLater(() -> new InventoryRubrica(player, sim).open(player));
+        }).exceptionally(throwable -> {
+            Common.error(throwable, "Errore caricamento contatti per " + player.getName());
             Common.runLater(() -> {
-                new InventoryRubrica(player, sim).open(player);
+                Messenger.error(player, "&cErrore caricamento contatti");
+                player.closeInventory();
             });
+            return null;
         });
     }
 
-    private static void handleMessages(final Player player, final String sim) {
+    private void handleMessages(final Player player, final String sim) {
+        if (!securityManager.validateAndAttemptAction(player, RateLimiter.ActionType.OPEN_CONTACTS, sim, "sim")) {
+            player.closeInventory();
+            return;
+        }
+        
         Telefono.getCacheContatti().get(sim).thenAccept(contacts -> {
             Common.runLater(() -> {
                 if (contacts.isEmpty()) {
@@ -138,19 +180,19 @@ public class EventInteractMainMenu implements Listener {
         });
     }
 
-    private static void handleDiscord(final Player player, final String sim) {
+    private void handleDiscord(final Player player, final String sim) {
         sendDiscordMessage(player);
     }
 
-    private static void handleStore(final Player player, final String sim) {
+    private void handleStore(final Player player, final String sim) {
         sendStoreMessage(player);
     }
 
-    private static void handleSimRemoval(final Player player, final String sim) {
+    private void handleSimRemoval(final Player player, final String sim) {
         removeSim(player, sim);
     }
 
-    private static void sendDiscordMessage(final Player player) {
+    private void sendDiscordMessage(final Player player) {
         player.closeInventory();
         player.sendMessage(" ");
         player.sendMessage(" §x§0§8§4§C§F§B§lᴅ§x§2§4§6§8§F§B§lɪ§x§3§F§8§4§F§C§ls§x§5§B§A§0§F§C§lᴄ§x§7§6§B§B§F§C§lᴏ§x§9§2§D§7§F§D§lʀ§x§A§D§F§3§F§D§lᴅ");
@@ -163,7 +205,7 @@ public class EventInteractMainMenu implements Listener {
         player.sendMessage(" ");
     }
 
-    private static void sendStoreMessage(final Player player) {
+    private void sendStoreMessage(final Player player) {
         player.closeInventory();
         player.sendMessage(" ");
         player.sendMessage(" §x§F§3§9§0§4§F§ls§x§C§5§7§D§5§8§lᴛ§x§9§7§6§A§6§0§lᴏ§x§6§9§5§6§6§9§lʀ§x§3§B§4§3§7§1§lᴇ");
@@ -176,7 +218,7 @@ public class EventInteractMainMenu implements Listener {
         player.sendMessage(" ");
     }
 
-    private static void removeSim(final Player player, final String sim) {
+    private void removeSim(final Player player, final String sim) {
         player.closeInventory();
         final ItemStack simItem = new ItemBuilder(CustomStack.getInstance("iageneric:sim").getItemStack())
                 .setDisplayName("§fSIM")
@@ -200,12 +242,28 @@ public class EventInteractMainMenu implements Listener {
 
     @EventHandler
     public void onClose(final InventoryCloseEvent e) {
-        restoreInventory((Player) e.getPlayer());
+        final Player player = (Player) e.getPlayer();
+        
+        // CRITICAL FIX: Controlla se il giocatore ha davvero l'interfaccia telefono aperta
+        // Verifica il titolo dell'inventario per distinguere diverse GUI
+        final String title = e.getView().getTitle();
+        
+        // Se chiude l'interfaccia del telefono principale, fai restore
+        if (title.equalsIgnoreCase(GUI_TITLE_MAIN)) {
+            restoreInventory(player);
+        } else {
+            // Per altre GUI (che non sono del telefono), fai restore normale
+            restoreInventory(player);
+        }
     }
 
     @EventHandler
     public void onQuit(final PlayerQuitEvent e) {
-        restoreInventory(e.getPlayer());
+        final Player player = e.getPlayer();
+        final UUID uuid = player.getUniqueId();
+        forceRestoreInventory(player);
+        securityManager.getRateLimiter().clearPlayer(uuid);
+        clickDebounceCache.invalidate(uuid); // Cleanup debounce cache
     }
 
     @EventHandler
@@ -219,10 +277,21 @@ public class EventInteractMainMenu implements Listener {
         }
 
         final Player player = (Player) e.getWhoClicked();
+        final UUID uuid = player.getUniqueId();
+        final long currentTime = System.currentTimeMillis();
+        
+        // CRITICAL FIX: Click debouncing per prevenire duplicazioni
+        final Long lastClick = clickDebounceCache.getIfPresent(uuid);
+        if (lastClick != null && currentTime - lastClick < 300) {
+            return; // Ignora click troppo rapidi
+        }
+        clickDebounceCache.put(uuid, currentTime);
+        
         final String sim = TelephoneAPI.getTelephoneNumber(player.getInventory().getItemInMainHand());
 
+        // ARCHITECTURE FIX: Usa instance-based maps invece di static
         final Inventory bottomInventory = e.getView().getBottomInventory();
-        final MenuAction action = e.getClickedInventory().equals(bottomInventory) ? MENU_ACTIONS_DOWN.get(e.getSlot()) : MENU_ACTIONS_UP.get(e.getSlot());
+        final MenuAction action = e.getClickedInventory().equals(bottomInventory) ? menuActionsDown.get(e.getSlot()) : menuActionsUp.get(e.getSlot());
         if (action != null) {
             action.execute(player, sim);
         }

@@ -27,7 +27,6 @@ public class CacheInvalidationListener implements Listener {
             Common.runAsync(() -> {
                 Telefono.getCacheContatti().get(sim);
                 Telefono.getCacheAbbonamento().get(sim);
-                Common.log("Cache pre-loaded per giocatore: " + event.getPlayer().getName() + " (SIM: " + sim + ")");
             });
         }
     }
@@ -56,31 +55,5 @@ public class CacheInvalidationListener implements Listener {
             return TelephoneAPI.getTelephoneNumber(telephones.getFirst());
         }
         return null;
-    }
-
-    /* Invalida cache su eventi di modifica dati */
-    public static void invalidateOnContactChange(final String sim) {
-        Common.runAsync(() -> {
-            Telefono.getCacheContatti().getCache().invalidate(sim);
-            Common.log("Cache contatti invalidata per SIM: " + sim);
-        });
-    }
-
-    public static void invalidateOnSubscriptionChange(final String sim) {
-        Common.runAsync(() -> {
-            Telefono.getCacheAbbonamento().getCache().invalidate(sim);
-            Common.log("Cache abbonamento invalidata per SIM: " + sim);
-        });
-    }
-
-    /* Invalidazione batch per operazioni massive */
-    public static void invalidateAllCaches() {
-        Common.runAsync(() -> {
-            Telefono.getCacheContatti().getCache().invalidateAll();
-            Telefono.getCacheAbbonamento().getCache().invalidateAll();
-            // Note: CacheHistoryChiamate e CacheHistoryMessaggi non hanno invalidateAll()
-            // implementeremo solo per le cache principali
-            Common.log("Cache principali invalidate");
-        });
     }
 } 

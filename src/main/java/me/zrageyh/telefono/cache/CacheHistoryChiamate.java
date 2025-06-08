@@ -59,11 +59,6 @@ public class CacheHistoryChiamate implements CacheInterface<HistoryChiamata> {
                 });
     }
 
-    public void shutdown() {
-        ServiceManager.shudown(executor);
-        cache.invalidateAll();
-    }
-
     public void put(final String sim, final HistoryChiamata data) {
         List<HistoryChiamata> objectContattoList = cache.getIfPresent(sim);
         if (objectContattoList == null || objectContattoList.isEmpty()) {

@@ -17,10 +17,13 @@ public class SettingsMySQL {
         final String user = mysqlConfig.getString("User");
         final String password = mysqlConfig.getString("Password");
         final String line = mysqlConfig.getString("Line");
-
+        final int port = mysqlConfig.getInteger("Port");
         final String jdbcUrl = line.replace("{host}", host).replace("{database}", database);
-        Database.getInstance().initConnectionPool(jdbcUrl, user, password);
-        Database.getInstance().connect(jdbcUrl, user, password, "Telefono");
+
+        Database.getInstance().connect(host, port, database, user, password);
+        
+        // Inizializza le tabelle database
+        Database.getInstance().initializeTables();
 
         mysqlConfig.save();
     }

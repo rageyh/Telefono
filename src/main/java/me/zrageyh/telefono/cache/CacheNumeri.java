@@ -21,7 +21,6 @@ public class CacheNumeri {
 
     public CacheNumeri(final ExecutorService sharedExecutor) {
         executor = sharedExecutor;
-        loadDataToCache();
     }
 
     /* Carica dati in cache */
@@ -31,6 +30,9 @@ public class CacheNumeri {
                 numbers.clear();
                 numbers.addAll(list);
             }
+        }).exceptionally(throwable -> {
+            Common.error(throwable, "Errore caricamento numeri in cache");
+            return null;
         });
     }
 
@@ -39,10 +41,5 @@ public class CacheNumeri {
         return CompletableFuture.runAsync(() -> {
             loadDataToCache();
         }, executor);
-    }
-
-    /* Shutdown */
-    public void shutdown() {
-        ServiceManager.shudown(executor);
     }
 }
